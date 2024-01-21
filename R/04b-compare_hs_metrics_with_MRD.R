@@ -252,6 +252,7 @@ for (i in 1:length(target_contigs)) {
 				      breaks = c(1e-4, 1e-3, 1e-1, 1, 10, 100),
 				      labels = c("ND", ".001", ".01", "1", "10", "100")) +
 			facet_grid(hpv_type_wes_wgs ~ chromosome + gene_name + start_end) +
+			theme_minimal() +
 			theme(axis.title.x = element_text(margin = margin(t = 20)),
 			      axis.title.y = element_text(margin = margin(r = 20)),
 			      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -306,6 +307,7 @@ for (i in 1:length(target_contigs)) {
 				      breaks = c(1e-4, 1e-3, 1e-1, 1, 10, 100),
 				      labels = c("ND", ".001", ".01", "1", "10", "100")) +
 			facet_grid(hpv_type_wes_wgs ~ chromosome + gene_name + start_end) +
+			theme_minimal() +
 			theme(axis.title.x = element_text(margin = margin(t = 20)),
 			      axis.title.y = element_text(margin = margin(r = 20)),
 			      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -367,6 +369,7 @@ plot_ = do.call(bind_rows, data_) %>%
 	scale_x_log10(labels = scientific_10) +
 	scale_y_log10(labels = scientific_10) +
 	facet_grid(ylab ~ xlab) +
+	theme_minimal() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +

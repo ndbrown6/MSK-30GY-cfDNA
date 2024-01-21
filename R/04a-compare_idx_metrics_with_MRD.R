@@ -416,6 +416,7 @@ plot_ = idx_metrics_ft %>%
 		      breaks = c(1e-4, 1e-3, 1e-1, 1, 10, 100),
 		      labels = c("ND", ".001", ".01", "1", "10", "100")) +
 	facet_grid(hpv_type_wes_wgs ~ chromosome) +
+	theme_minimal() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20))) +
 	guides(shape = guide_legend(title = "Tumor\nHPV Type"),

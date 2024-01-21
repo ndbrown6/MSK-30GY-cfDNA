@@ -202,7 +202,7 @@ plot_ = manifest %>%
 	      axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.text.x = element_text(size = 0),
 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	facet_grid(0~hpv_type_wes_wgs, scales = "free_x", space = "free_x")
+	facet_grid(" "~hpv_type_wes_wgs, scales = "free_x", space = "free_x")
 
 pdf(file = "../res/Sample_by_Time_Point.pdf", width = 9, height = 4)
 print(plot_)
@@ -256,40 +256,42 @@ smry_baseline__mrd = manifest %>%
 		     .[["Is_ctDNA"]] %>%
 		     sum()
 
-smry_baseline__hpv = readr::read_tsv(file = "../res/posterior_probability_all.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	             readr::type_convert() %>%
-		     dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
-		     dplyr::group_by(patient_name) %>%
-		     dplyr::summarize(Is_ctDNA = any(Is_ctDNA == "+ve")) %>%
-		     .[["Is_ctDNA"]] %>%
-		     sum()
+if (file.exists("../res/Posterior_Probability_ALL.txt")) {
+	smry_baseline__hpv = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
+			     readr::type_convert() %>%
+			     dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
+			     dplyr::group_by(patient_name) %>%
+			     dplyr::summarize(Is_ctDNA = any(Is_ctDNA == "+ve")) %>%
+			     .[["Is_ctDNA"]] %>%
+			     sum()
 
-smry_baseline__mrd_hpv = manifest %>%
-	       	     	 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
-			 dplyr::mutate(patient_id_mskcc = case_when(
-				 			is.na(patient_id_mskcc) & sample_id_mskcc=="21-144-03654" ~ "CTMS-164",
-				 			TRUE ~ patient_id_mskcc
-			 )) %>%
-			 dplyr::mutate(SAMPLE_NAME = paste0(sample_id_mskcc, "-", sample_id_invitae)) %>%
-			 dplyr::left_join(hpv_smry, by = "patient_id_mskcc") %>%
-			 dplyr::mutate(hpv_type_wes_wgs = case_when(
-				 		is.na(hpv_type_wes_wgs) ~ "Unknown",
-			     			TRUE ~ hpv_type_wes_wgs
-			 )) %>%
-			 dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
-			 dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-			 dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
-			 dplyr::group_by(patient_name) %>%
-			 dplyr::summarize(Is_ctDNA_MRD = any(`MRD-Landmark_Result` == "PRESENT")) %>%
-			 dplyr::left_join(readr::read_tsv(file = "../res/posterior_probability_all.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	             			  readr::type_convert() %>%
-					  dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
-					  dplyr::group_by(patient_name) %>%
-					  dplyr::summarize(Is_ctDNA_HPV = any(Is_ctDNA == "+ve")),
-					  by = "patient_name") %>%
-			 dplyr::mutate(Is_ctDNA = Is_ctDNA_MRD | Is_ctDNA_HPV) %>%
-		     	 .[["Is_ctDNA"]] %>%
-			 sum()
+	smry_baseline__mrd_hpv = manifest %>%
+				 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+				 dplyr::mutate(patient_id_mskcc = case_when(
+								is.na(patient_id_mskcc) & sample_id_mskcc=="21-144-03654" ~ "CTMS-164",
+								TRUE ~ patient_id_mskcc
+				 )) %>%
+				 dplyr::mutate(SAMPLE_NAME = paste0(sample_id_mskcc, "-", sample_id_invitae)) %>%
+				 dplyr::left_join(hpv_smry, by = "patient_id_mskcc") %>%
+				 dplyr::mutate(hpv_type_wes_wgs = case_when(
+							is.na(hpv_type_wes_wgs) ~ "Unknown",
+							TRUE ~ hpv_type_wes_wgs
+				 )) %>%
+				 dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
+				 dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+				 dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
+				 dplyr::group_by(patient_name) %>%
+				 dplyr::summarize(Is_ctDNA_MRD = any(`MRD-Landmark_Result` == "PRESENT")) %>%
+				 dplyr::left_join(readr::read_tsv(file = "../res/posterior_probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
+						  readr::type_convert() %>%
+						  dplyr::filter(timepoint_days_since_start_of_RT<=0) %>%
+						  dplyr::group_by(patient_name) %>%
+						  dplyr::summarize(Is_ctDNA_HPV = any(Is_ctDNA == "+ve")),
+						  by = "patient_name") %>%
+				 dplyr::mutate(Is_ctDNA = Is_ctDNA_MRD | Is_ctDNA_HPV) %>%
+				 .[["Is_ctDNA"]] %>%
+				 sum()
+}
 
 #==================================================
 # ctDNA fraction by time point
@@ -335,7 +337,6 @@ plot_ = smry_ctdna %>%
 pdf(file = "../res/ctDNA_by_Time_Point.pdf", width = 4, height = 5)
 print(plot_)
 dev.off()
-
 
 #########################################################
 # (+) Samples with mean AF > 5% from MRD assay

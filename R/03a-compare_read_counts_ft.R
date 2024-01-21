@@ -229,34 +229,6 @@ plot_ = do.call(bind_rows, data_) %>%
 			 dplyr::summarize(n = n()), by = "hpv_type_wes_wgs") %>%
 	dplyr::arrange(desc(n)) %>%
 	dplyr::mutate(hpv_type_wes_wgs = factor(hpv_type_wes_wgs, levels = rev(c("Unknown", "HPV-18", "HPV-58", "HPV-35", "HPV-33", "HPV-16")), ordered = TRUE)) %>%
-	ggplot(aes(x +1, y +1, color = hpv_type_wes_wgs)) +
-	geom_abline(slope = 1, intercept = 0, linetype = 1, size = .75, alpha = .55, color = "goldenrod3") +
-	geom_vline(xintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_hline(yintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .55, size = 2) +
-	scale_color_brewer(type = "qual", palette = 6) +
-	xlab("Number of Read Pairs Aligned") +
-	ylab("Number of Read Pairs Aligned") +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(labels = scientific_10) +
-	facet_grid(ylab ~ xlab) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(color = guide_legend(title = "Tumor\nHPV Type", override.aes = list(alpha = 1)))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs.pdf", width = 9, height = 7)
-print(plot_)
-dev.off()
-
-
-plot_ = do.call(bind_rows, data_) %>%
-	dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-	dplyr::left_join(manifest %>%
-			 dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-			 dplyr::group_by(hpv_type_wes_wgs) %>%
-			 dplyr::summarize(n = n()), by = "hpv_type_wes_wgs") %>%
-	dplyr::arrange(desc(n)) %>%
-	dplyr::mutate(hpv_type_wes_wgs = factor(hpv_type_wes_wgs, levels = rev(c("Unknown", "HPV-18", "HPV-58", "HPV-35", "HPV-33", "HPV-16")), ordered = TRUE)) %>%
 	dplyr::filter(hpv_type_wes_wgs != "HPV-18" & hpv_type_wes_wgs != "HPV-31" & hpv_type_wes_wgs != "Unknown") %>%
 	dplyr::filter(xlab == "HPV-18" & ylab == "HPV-31") %>%
 	ggplot(aes(x +1, y +1, color = hpv_type_wes_wgs)) +
@@ -279,75 +251,4 @@ pdf(file = "../res/Number_Read_Pairs_Aligned_HPV-18_HPV_31.pdf", width = 6, heig
 print(plot_)
 dev.off()
 
-ii = 1
-data_ = list()
-for (i in 1:(length(target_contigs)-1)) {
-	for (j in (i+1):length(target_contigs)) {
-		data_[[ii]] = idx_metrics_ft %>%
-			      dplyr::select(all_of(c("SAMPLE_NAME", "hpv_type_wes_wgs", names(target_contigs)[i], names(target_contigs)[j]))) %>%
-			      dplyr::rename(x = names(target_contigs)[i],
-					    y = names(target_contigs)[j]) %>%
-			      dplyr::mutate(xlab = names(target_contigs)[i],
-					    ylab = names(target_contigs)[j])
-		ii = ii + 1
-	}
-}
 
-plot_ = do.call(bind_rows, data_) %>%
-	dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-	dplyr::left_join(manifest %>%
-			 dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-			 dplyr::group_by(hpv_type_wes_wgs) %>%
-			 dplyr::summarize(n = n()), by = "hpv_type_wes_wgs") %>%
-	dplyr::arrange(desc(n)) %>%
-	dplyr::mutate(hpv_type_wes_wgs = factor(hpv_type_wes_wgs, levels = rev(c("Unknown", "HPV-18", "HPV-58", "HPV-35", "HPV-33", "HPV-16")), ordered = TRUE)) %>%
-	ggplot(aes(x +1, y +1, color = hpv_type_wes_wgs)) +
-	geom_abline(slope = 1, intercept = 0, linetype = 1, size = .75, alpha = .55, color = "goldenrod3") +
-	geom_vline(xintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_hline(yintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .55, size = 2) +
-	scale_color_brewer(type = "qual", palette = 6) +
-	xlab("Number of Read Pairs Aligned") +
-	ylab("Number of Read Pairs Aligned") +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(labels = scientific_10) +
-	facet_grid(ylab ~ xlab) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(color = guide_legend(title = "Tumor\nHPV Type", override.aes = list(alpha = 1)))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs_Primer_Filtered.pdf", width = 9, height = 7)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics %>%
-	reshape2::melt(id.vars = c("SAMPLE_NAME", "hpv_type_wes_wgs"), measure.vars = names(target_contigs)) %>%
-	dplyr::rename(contig = variable, aligned_reads = value) %>%
-	dplyr::full_join(idx_metrics_ft %>%
-			 reshape2::melt(id.vars = "SAMPLE_NAME", measure.vars = names(target_contigs)) %>%
-			 dplyr::rename(contig = variable, aligned_reads_ft = value), by = c("SAMPLE_NAME", "contig")) %>%
-	dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-	dplyr::left_join(manifest %>%
-			 dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-			 dplyr::group_by(hpv_type_wes_wgs) %>%
-			 dplyr::summarize(n = n()), by = "hpv_type_wes_wgs") %>%
-	dplyr::arrange(desc(n)) %>%
-	dplyr::mutate(hpv_type_wes_wgs = factor(hpv_type_wes_wgs, levels = rev(c("Unknown", "HPV-18", "HPV-58", "HPV-35", "HPV-33", "HPV-16")), ordered = TRUE)) %>%
-	ggplot(aes(x = aligned_reads+1, y = aligned_reads_ft+1, color = hpv_type_wes_wgs)) +
-	geom_abline(slope = 1, intercept = 0, linetype = 1, size = .75, alpha = .55, color = "goldenrod3") +
-	geom_vline(xintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_hline(yintercept = 1, color = "black", linetype = 3, size = .5, alpha = .75) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .55, size = 2) +
-	scale_color_brewer(type = "qual", palette = 6) +
-	xlab("Total Number of Read Pairs") +
-	ylab("Number of Read Pairs Filtered") +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(labels = scientific_10) +
-	facet_grid(hpv_type_wes_wgs~contig) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(color = FALSE)
-	
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs__Compare_Primer_Filtered.pdf", width = 8, height = 8)
-print(plot_)
-dev.off()

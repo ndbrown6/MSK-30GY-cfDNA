@@ -292,4 +292,4 @@ smry_ = test_ %>%
 
 smry_ %>%
 dplyr::select(-index) %>%
-readr::write_tsv(, path = "../res/posterior_probability_all.txt", append = FALSE, col_names = TRUE)
+readr::write_tsv(, path = "../res/Posterior_Probability_ALL.txt", append = FALSE, col_names = TRUE)
