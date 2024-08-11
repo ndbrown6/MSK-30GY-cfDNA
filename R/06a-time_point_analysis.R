@@ -59,6 +59,50 @@ print(plot_)
 dev.off()
 
 plot_ = posterior_smry %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-134") %>%
+	dplyr::left_join(mrd_smry %>%
+			 dplyr::mutate(sample_name = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)) %>%
+			 dplyr::select(sample_name, `MRD-Landmark_Result`), by = "sample_name") %>%
+	dplyr::filter(timepoint_days_since_start_of_RT>=0) %>%
+	dplyr::mutate(Is_ctDNA = case_when(
+		`MRD-Landmark_Result` == "PRESENT" ~ "+ve",
+		`MRD-Landmark_Result` == "ABSENT" ~ "-ve"
+	)) %>%
+	dplyr::arrange(as.numeric(gsub("CTMS-", "", patient_id_mskcc))) %>%
+	dplyr::mutate(patient_id_mskcc = factor(patient_id_mskcc, levels = unique(patient_id_mskcc), ordered = TRUE)) %>%
+	ggplot(aes(x = timepoint_days_since_start_of_RT + 1, y = `Pr(x=1)`)) +
+	geom_line(stat = "identity", size = 1, alpha = 1, color = "#e41a1c") +
+	geom_jitter(data = posterior_smry %>%
+		    	   dplyr::filter(patient_id_mskcc == "CTMS-134") %>%
+			   dplyr::left_join(mrd_smry %>%
+					    dplyr::mutate(sample_name = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)) %>%
+					    dplyr::select(sample_name, `MRD-Landmark_Result`), by = "sample_name") %>%
+			   dplyr::filter(timepoint_days_since_start_of_RT>=0) %>%
+			   dplyr::mutate(Is_ctDNA = case_when(
+				   		`MRD-Landmark_Result` == "PRESENT" ~ "+ve",
+				   		`MRD-Landmark_Result` == "ABSENT" ~ "-ve"
+			   )) %>%
+		    	   dplyr::arrange(as.numeric(gsub("CTMS-", "", patient_id_mskcc))) %>%
+		    	   dplyr::mutate(patient_id_mskcc = factor(patient_id_mskcc, levels = unique(patient_id_mskcc), ordered = TRUE)),
+		    mapping = aes(x = timepoint_days_since_start_of_RT + 1, y = `Pr(x=1)`, shape = Is_ctDNA),
+		    fill = "white", size = 3, alpha = .75, width = 0, height = 0, inherit.aes = FALSE, color = "#e41a1c") +
+	scale_shape_manual(values = c("-ve" = 21, "+ve" = 24)) +
+	scale_x_log10(limits = c(1, 1096),
+		      breaks = c(0, 7, 30, 182, 730)+1,
+		      labels = c("RT", "7d", "1m", "6m", "2y")) +
+	scale_y_continuous(limits = c(0, 1)) +
+	xlab("Time since start of RT") +
+	ylab("Posterior Probability") +
+	theme_minimal() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20))) +
+	guides(shape = guide_legend(title = "ctDNA", order = 1))
+	
+pdf("../res/CTMS-134-Time_Point_by_Posterior_Probability.pdf", width = 5, height = 3)
+print(plot_)
+dev.off()
+
+plot_ = posterior_smry %>%
 	dplyr::left_join(mrd_smry %>%
 			 dplyr::mutate(sample_name = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)) %>%
 			 dplyr::select(sample_name, `MRD-Landmark_Result`, `MRD-Landmark_MRD_Quantification`), by = "sample_name") %>%

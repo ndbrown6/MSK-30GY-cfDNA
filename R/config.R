@@ -33,6 +33,7 @@ suppressPackageStartupMessages(library("MASS"))
 suppressPackageStartupMessages(library("rpart"))
 suppressPackageStartupMessages(library("klaR"))
 suppressPackageStartupMessages(library("ggord"))
+suppressPackageStartupMessages(library("ggpubr"))
 
 registerDoMC(8)
 
@@ -48,6 +49,7 @@ url_mrd_summary <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
 url_mutation_summary <- "../data/mutation_summary.maf"
 url_hpv_type <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
 url_no_node_dissection <- "../data/patients_0_nodal_dissection.txt"
+url_clinical <- "../data/clinical.txt"
 
 url_aln_metrics <- "../data/aln_metrics.txt"
 url_aln_metrics_ft <- "../data/aln_metrics_ft.txt"
@@ -68,6 +70,8 @@ url_insert_metrics_by_gene <- "../data/insert_metrics_by_gene.txt"
 url_insert_summary <- "../data/insert_summary.txt"
 url_insert_summary_ft <- "../data/insert_summary_ft.txt"
 
+url_gatk_summary <- "../data/gatk_summary.txt"
+
 target_contigs <- c("HPV-16" = "NC001526.4",
 		    "HPV-18" = "NC001357.1",
 		    "HPV-31" = "J04353.1",
@@ -76,6 +80,10 @@ target_contigs <- c("HPV-16" = "NC001526.4",
 
 'scientific_10' <- function(x) {
 	parse(text=gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), , fixed = TRUE))
+}
+
+'scientific_1e' <- function(x) {
+	parse(text=gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), , fixed = TRUE))
 }
 
 'str_split' <- function(x, split, n) {

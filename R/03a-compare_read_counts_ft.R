@@ -76,14 +76,18 @@ plot_ = aln_metrics %>%
 	xlab(expression("cfDNA concentration  (ng"~.~mu~L^-1~")")) +
 	ylab("Number of Read Pairs Aligned") +
 	labs(title = "HPV Assay\n") +
-	scale_x_log10(labels = scientific_10) +
+	scale_x_log10(limits = c(NA, 1),
+		      labels = scientific_10) +
 	scale_y_log10(labels = scientific_10) +
-	theme_minimal() +
+	stat_cor(method = "spearman") +
+	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
 	      plot.title = element_text(hjust = 0.5))
 
-pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL__HPV.pdf", width = 5, height = 5)
+pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL_HPV_Assay.pdf", width = 3.25, height = 3.5)
 print(plot_)
 dev.off()
 
@@ -97,158 +101,18 @@ plot_ = mrd_smry %>%
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x, se = .90, color = "goldenrod3", alpha = .55, size = 1.5) +
 	xlab(expression("cfDNA concentration  (ng"~.~mu~L^-1~")")) +
 	ylab("Number of Read Pairs Aligned") +
-	labs(title = "MRD Assay\n") +
-	scale_x_log10(labels = scientific_10) +
+	labs(title = "PCM Assay\n") +
+	scale_x_log10(limits = c(NA, 1),
+		      labels = scientific_10) +
 	scale_y_log10(labels = scientific_10) +
-	theme_minimal() +
+	stat_cor(method = "spearman") +
+	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
 	      plot.title = element_text(hjust = 0.5))
 
-pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL__MRD.pdf", width = 5, height = 5)
+pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL_PCM_Assay.pdf", width = 3.25, height = 3.5)
 print(plot_)
 dev.off()
-
-aln_metrics %>%
-dplyr::left_join(manifest, by = "SAMPLE_NAME") %>%
-dplyr::left_join(mrd_smry %>%
-		 dplyr::mutate(SAMPLE_NAME = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)),
-		 by = "SAMPLE_NAME") %>%
-dplyr::mutate(hpv_fraction = (TOTAL_READS/2)/(Total_Sample_Complexity+(TOTAL_READS/2))) %>%
-dplyr::filter(SAMPLE_NAME == "21-020-04087-GER2107031") %>%
-.[["hpv_fraction"]] * 100
-
-plot_ = idx_metrics %>%
-	dplyr::mutate(is_hpv_yes_no = case_when(
-		hpv_type_wes_wgs == "HPV-16" ~ "HPV-16 +ve",
-		TRUE ~ "HPV-16 -ve"
-	)) %>%
-	ggplot(aes(x = `HPV-16`)) +
-	geom_histogram(stat = "bin", bins = 25, fill = "#2c7fb8", color = NA, alpha = .35) +
-	xlab("Read Pairs Aligned to HPV-16 Contig") +
-	ylab("Number of Samples") +
-	scale_x_log10(expand = c(0, 0),
-		      labels = scientific_10) +
-	scale_y_continuous() +
-	theme_minimal() +
-	facet_wrap(~is_hpv_yes_no) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      panel.spacing = unit(2, "lines"))
-	
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs_HPV-16.pdf", width = 7, height = 3)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics %>%
-	dplyr::mutate(is_hpv_yes_no = case_when(
-		hpv_type_wes_wgs == "HPV-18" ~ "HPV-18 +ve",
-		TRUE ~ "HPV-18 -ve"
-	)) %>%
-	ggplot(aes(x = `HPV-18`)) +
-	geom_histogram(stat = "bin", bins = 25, fill = "#7fcdbb", color = NA, alpha = .55) +
-	xlab("Read Pairs Aligned to HPV-18 Contig") +
-	ylab("Number of Samples") +
-	scale_x_log10(expand = c(0, 0),
-		      labels = scientific_10) +
-	scale_y_continuous() +
-	theme_minimal() +
-	facet_wrap(~is_hpv_yes_no) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      panel.spacing = unit(2, "lines"))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs_HPV-18.pdf", width = 7, height = 3)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics %>%
-	dplyr::mutate(is_hpv_yes_no = case_when(
-		hpv_type_wes_wgs == "HPV-33" ~ "HPV-33 +ve",
-		TRUE ~ "HPV-33 -ve"
-	)) %>%
-	ggplot(aes(x = `HPV-33`)) +
-	geom_histogram(stat = "bin", bins = 25, fill = "#dd1c77", color = NA, alpha = .35) +
-	xlab("Read Pairs Aligned to HPV-33 Contig") +
-	ylab("Number of Samples") +
-	scale_x_log10(expand = c(0, 0),
-		      labels = scientific_10) +
-	scale_y_continuous() +
-	theme_minimal() +
-	facet_wrap(~is_hpv_yes_no) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      panel.spacing = unit(2, "lines"))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs_HPV-33.pdf", width = 7, height = 3)
-print(plot_)
-dev.off()
-	
-plot_ = idx_metrics %>%
-	dplyr::mutate(is_hpv_yes_no = case_when(
-		hpv_type_wes_wgs == "HPV-35" ~ "HPV-35 +ve",
-		TRUE ~ "HPV-35 -ve"
-	)) %>%
-	ggplot(aes(x = `HPV-35`)) +
-	geom_histogram(stat = "bin", bins = 25, fill = "#de2d26", color = NA, alpha = .35) +
-	xlab("Read Pairs Aligned to HPV-35 Contig") +
-	ylab("Number of Samples") +
-	scale_x_log10(expand = c(0, 0),
-		      labels = scientific_10) +
-	scale_y_continuous() +
-	theme_minimal() +
-	facet_wrap(~is_hpv_yes_no) +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      panel.spacing = unit(2, "lines"))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Contigs_HPV-35.pdf", width = 7, height = 3)
-print(plot_)
-dev.off()
-
-ii = 1
-data_ = list()
-for (i in 1:(length(target_contigs)-1)) {
-	for (j in (i+1):length(target_contigs)) {
-		data_[[ii]] = idx_metrics %>%
-			      dplyr::select(all_of(c("SAMPLE_NAME", "hpv_type_wes_wgs", names(target_contigs)[i], names(target_contigs)[j]))) %>%
-			      dplyr::rename(x = names(target_contigs)[i],
-					    y = names(target_contigs)[j]) %>%
-			      dplyr::mutate(xlab = names(target_contigs)[i],
-					    ylab = names(target_contigs)[j])
-		ii = ii + 1
-	}
-}
-
-plot_ = do.call(bind_rows, data_) %>%
-	dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-	dplyr::left_join(manifest %>%
-			 dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-			 dplyr::group_by(hpv_type_wes_wgs) %>%
-			 dplyr::summarize(n = n()), by = "hpv_type_wes_wgs") %>%
-	dplyr::arrange(desc(n)) %>%
-	dplyr::mutate(hpv_type_wes_wgs = factor(hpv_type_wes_wgs, levels = rev(c("Unknown", "HPV-18", "HPV-58", "HPV-35", "HPV-33", "HPV-16")), ordered = TRUE)) %>%
-	dplyr::filter(hpv_type_wes_wgs != "HPV-18" & hpv_type_wes_wgs != "HPV-31" & hpv_type_wes_wgs != "Unknown") %>%
-	dplyr::filter(xlab == "HPV-18" & ylab == "HPV-31") %>%
-	ggplot(aes(x +1, y +1, color = hpv_type_wes_wgs)) +
-	geom_abline(slope = 1, intercept = 0, linetype = 1, size = 1.5, alpha = .55, color = "#7fcdbb") +
-	geom_smooth(method = "glm", formula = y ~ x, linetype = 1, size = 1.5, alpha = .55, color = "goldenrod3", se = FALSE, fullrange = TRUE) +
-	geom_vline(xintercept = 1, color = "black", linetype = 3, size = .75, alpha = .75) +
-	geom_hline(yintercept = 1, color = "black", linetype = 3, size = .75, alpha = .75) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .45, size = 2.5) +
-	scale_color_brewer(type = "qual", palette = 6) +
-	xlab("Read Pairs Aligned to HPV-18 Contig") +
-	ylab("Read Pairs Aligned to HPV-31 Contig") +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(labels = scientific_10) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(color = guide_legend(title = "Tumor\nHPV Type", override.aes = list(alpha = 1)))
-
-pdf(file = "../res/Number_Read_Pairs_Aligned_HPV-18_HPV_31.pdf", width = 6, height = 5)
-print(plot_)
-dev.off()
-
-

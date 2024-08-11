@@ -135,293 +135,47 @@ smry_ft = dplyr::bind_rows(smry_t_pos %>%
 			   smry_t_neg %>%
 			   dplyr::select(all_of(intersect(colnames(smry_t_pos), colnames(smry_t_neg)))))
 
-plot_ = idx_metrics %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::filter(!is.na(Is_ctDNA)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_no_Filtering.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::mutate(Is_ctDNA = case_when(
-		is.na(Is_ctDNA) ~ "?",
-		TRUE ~ Is_ctDNA
-	)) %>%
-	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve", "?"), ordered = TRUE)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_no_Filtering_with_Unknown.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
 plot_ = idx_metrics_ft %>%
-	dplyr::filter(fragment_length == 0) %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::filter(!is.na(Is_ctDNA)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics_ft %>%
-			 dplyr::filter(FRAGMENT_LENGTH == 0) %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_Primer_Filtered.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics_ft %>%
-	dplyr::filter(fragment_length == 0) %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::mutate(Is_ctDNA = case_when(
-		is.na(Is_ctDNA) ~ "?",
-		TRUE ~ Is_ctDNA
-	)) %>%
-	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve", "?"), ordered = TRUE)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics_ft %>%
-			 dplyr::filter(FRAGMENT_LENGTH == 0) %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_Primer_Filtered_with_Unknown.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics_ft %>%
-	dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::filter(!is.na(Is_ctDNA)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics_ft %>%
-			 dplyr::filter(FRAGMENT_LENGTH == FRAGMENT_LENGTH_THRESHOLD) %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_Primer_Filtered_Fragment_Filtered.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
-plot_ = idx_metrics_ft %>%
-	dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
-	dplyr::left_join(smry_ft, by = "sample_name") %>%
-	dplyr::mutate(Is_ctDNA = case_when(
-		is.na(Is_ctDNA) ~ "?",
-		TRUE ~ Is_ctDNA
-	)) %>%
-	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve", "?"), ordered = TRUE)) %>%
-	dplyr::group_by(sample_name, Is_ctDNA) %>%
-	dplyr::summarize(aligned_reads = sum(aligned_reads)) %>%
-	dplyr::ungroup() %>%
-	dplyr::left_join(insert_size_metrics_ft %>%
-			 dplyr::filter(FRAGMENT_LENGTH == FRAGMENT_LENGTH_THRESHOLD) %>%
-			 dplyr::rename(sample_name = SAMPLE_NAME), by = "sample_name") %>%
-	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, size = MEAN_INSERT_SIZE)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(stat = "identity", fill = "salmon", width = .1, height = 0, shape = 21, alpha = .75) +
-	scale_size_continuous() +
-	scale_x_discrete() +
-	scale_y_log10(labels = scientific_10) +
-	xlab("ctDNA") +
-	ylab("Number of Read Pairs") +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("+ve", "-ve")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = log10(1E7),
-		    tip_length = 0.01) +
-	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
- 	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(size = guide_legend(title = "Mean Insert\nSize (bp)"))
-
-pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_Primer_Filtered_Fragment_Filtered_with_Unknown.pdf", width = 5, height = 5)
-print(plot_)
-dev.off()
-
-
-fit = idx_metrics_ft %>%
-      dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
-      dplyr::left_join(mutation_smry %>%
-		       dplyr::filter(FILTER == "PASS") %>%
-		       dplyr::group_by(Tumor_Sample_Barcode) %>%
-		       dplyr::summarize(mean_af = mean(t_maf),
-					median_af = median(t_maf),
-					max_af = max(t_maf)) %>%
-		       dplyr::ungroup() %>%
-		       dplyr::rename(sample_name = Tumor_Sample_Barcode), by = "sample_name") %>%
-       dplyr::left_join(manifest, by = "sample_name") %>%
-       dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-       dplyr::mutate(chromosome = case_when(
-		chromosome == "J04353.1" ~ "HPV-31",
-		chromosome == "M12732.1" ~ "HPV-33",
-	   	chromosome == "NC001357.1" ~ "HPV-18",
-		chromosome == "NC001526.4" ~ "HPV-16",
-		chromosome == "X74477.1" ~ "HPV-35"
-	)) %>%
+	dplyr::filter(fragment_length == 37) %>%
 	dplyr::left_join(smry_ft %>%
-			 dplyr::select(sample_name, Is_ctDNA), by = "sample_name") %>%
-	dplyr::mutate(Is_ctDNA = ifelse(is.na(Is_ctDNA), "?", Is_ctDNA)) %>%
-	dplyr::filter(Is_ctDNA != "?") %>%
-	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)) %>%
-	dplyr::filter(chromosome == "HPV-16") %>%
+			 dplyr::select(sample_name, Is_ctDNA),
+			 by = "sample_name") %>%
 	dplyr::mutate(Is_ctDNA = case_when(
-		  hpv_type_wes_wgs == "HPV-16" & Is_ctDNA == "+ve" ~ "+ve",
-		  TRUE ~ "-ve"
-	 )) %>%
-	rpart::rpart(formula = Is_ctDNA ~ aligned_reads, data = ., method = "class")
-
-smry = dplyr::tibble(chromosome = rep("HPV-16", length(unique(smry_ft$hpv_type_wes_wgs))),
-		     hpv_type_wes_wgs = unique(smry_ft$hpv_type_wes_wgs),
-		     xintercept = fit$splits[1,"index"])
-
-plot_ = idx_metrics_ft %>%
-	dplyr::left_join(mutation_smry %>%
-	 		 dplyr::filter(FILTER == "PASS") %>%
-			 dplyr::group_by(Tumor_Sample_Barcode) %>%
-			 dplyr::summarize(mean_af = mean(t_maf),
-					  median_af = median(t_maf),
-				   	  max_af = max(t_maf)) %>%
-			 dplyr::ungroup() %>%
-			 dplyr::rename(sample_name = Tumor_Sample_Barcode), by = "sample_name") %>%
+		is.na(Is_ctDNA) ~ "Unknown",
+		TRUE ~ Is_ctDNA
+	)) %>%
+	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve", "Unknown"), ordered = TRUE)) %>%
 	dplyr::left_join(manifest, by = "sample_name") %>%
-	dplyr::mutate(hpv_type_wes_wgs = ifelse(is.na(hpv_type_wes_wgs), "Unknown", hpv_type_wes_wgs)) %>%
-	dplyr::mutate(chromosome = case_when(
-		chromosome == "J04353.1" ~ "HPV-31",
-		chromosome == "M12732.1" ~ "HPV-33",
-	   	chromosome == "NC001357.1" ~ "HPV-18",
-		chromosome == "NC001526.4" ~ "HPV-16",
-		chromosome == "X74477.1" ~ "HPV-35"
-	)) %>%
-	dplyr::left_join(smry_ft %>%
-			 dplyr::select(sample_name, Is_ctDNA), by = "sample_name") %>%
-	dplyr::mutate(Is_ctDNA = ifelse(is.na(Is_ctDNA), "?", Is_ctDNA)) %>%
-	dplyr::filter(Is_ctDNA != "?") %>%
-	dplyr::mutate(mean_af = ifelse(mean_af == 0, .000001, mean_af)) %>%
-	dplyr::mutate(median_af = ifelse(median_af == 0, .000001, median_af)) %>%
-	dplyr::mutate(max_af = ifelse(max_af == 0, .000001, max_af)) %>%
-	dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
-	dplyr::arrange(desc(Is_ctDNA)) %>%
-	ggplot(aes(x = aligned_reads+1, y = 100*mean_af, color = Is_ctDNA, shape = hpv_type_wes_wgs)) +
-	geom_vline(data = smry, aes(xintercept = xintercept), alpha = 1, linetype = 3) +
-	geom_point(stat = "identity", fill = NA, alpha = 1, size = 1.5) +
-	scale_color_brewer(type = "qual", palette = 6) +
-	scale_shape_manual(values = c(1, 2, 3, 4, 5, 6)) +
-	xlab("Number of Read Pairs Aligned") +
-	ylab("Mean Allele Fraction (%)") +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(limits = c(1e-4, 100),
-		      breaks = c(1e-4, 1e-3, 1e-1, 1, 10, 100),
-		      labels = c("ND", ".001", ".01", "1", "10", "100")) +
-	facet_grid(hpv_type_wes_wgs ~ chromosome) +
-	theme_minimal() +
+	dplyr::filter(chromosome == "NC001526.4") %>%
+	dplyr::filter(
+		(Is_ctDNA %in% c("+ve", "-ve") & hpv_type_wes_wgs == "HPV-16") |
+		(Is_ctDNA == "Unknown" & hpv_type_wes_wgs %in% c("HPV-18", "HPV-33", "HPV-35", "HPV-58"))
+	) %>%
+	ggplot(aes(x = Is_ctDNA, y = aligned_reads+1, fill = Is_ctDNA)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white") +
+	geom_jitter(stat = "identity", width = .15, height = 0, shape = 21, alpha = .85, size = 3) +
+	scale_fill_manual(values = c("+ve" = "#377eb8",
+				     "-ve" = "#377eb8",
+				     "Unknown" = "#e41a1c")) +
+	xlab("") +
+	ylab("HPV-16 Aligned Read Pairs") +
+	scale_x_discrete() +
+	scale_y_log10(limits = c(NA, 1E7),
+		      breaks = c(1E1, 1E2, 1E3, 1E4, 1E5, 1E6, 1E7),
+		      labels = scientific_10) +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("+ve", "-ve")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "two.sided", exact = FALSE),
+		    y_position = log10(1E7),
+		    tip_length = 0.01) +
+	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20))) +
-	guides(shape = guide_legend(title = "Tumor\nHPV Type"),
-	       color = guide_legend(title = "ctDNA", override.aes = list(alpha = 1)))
+	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE)
 
-pdf(file = "../res/Number_Read_Pairs_Aligned_by_Mean_AF.pdf", width = 12/1.15, height = 10/1.15)
+pdf(file = "../res/Number_of_Read_Pairs_by_Insert_Size_Primer_Filtered_with_Unknown.pdf", width = 3.25, height = 3.25)
 print(plot_)
 dev.off()
