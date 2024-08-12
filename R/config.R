@@ -34,6 +34,7 @@ suppressPackageStartupMessages(library("rpart"))
 suppressPackageStartupMessages(library("klaR"))
 suppressPackageStartupMessages(library("ggord"))
 suppressPackageStartupMessages(library("ggpubr"))
+suppressPackageStartupMessages(library("ComplexHeatmap"))
 
 registerDoMC(8)
 

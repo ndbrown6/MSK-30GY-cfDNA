@@ -663,7 +663,7 @@ plot_ = res_ %>%
 	       shape = guide_legend(title = "Variable Category", order = 1),
 	       size = guide_legend(title = expression(-Log[10]~"p-value")))
 
-pdf(file = "../res/Total_Reads_Regression_Coefficients.pdf", width = 6, height = 3.5)
+pdf(file = "../res/Linear_Regression_Coefficients.pdf", width = 6, height = 3.5)
 print(plot_)
 dev.off()
 
