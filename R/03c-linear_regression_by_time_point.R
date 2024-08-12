@@ -322,7 +322,7 @@ draw(Heatmap(matrix = p_values %>%
 	     column_title_side = "bottom",
 	     column_title_gp = gpar(fontsize = 8),
 
-	     use_raster = TRUE,
+	     use_raster = FALSE,
 	     show_heatmap_legend = TRUE))
 dev.off()
 
