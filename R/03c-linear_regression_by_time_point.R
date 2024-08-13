@@ -331,21 +331,31 @@ plot_ = idx_metrics_ft %>%
 	dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
 	dplyr::summarize(aligned_reads = mean(log10(aligned_reads))) %>%
 	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3", "wk5")) %>%
-	ggplot(aes(x = timepoint_weeks_since_start_of_RT, y = aligned_reads)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
-	scale_x_discrete() +
-	scale_y_continuous(limits = c(1, 7),
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = factor(x = timepoint_weeks_since_start_of_RT,
+								 levels = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+								 ordered = TRUE)) %>%
+	ggplot(aes(x = aligned_reads, y = timepoint_weeks_since_start_of_RT,
+		   fill = timepoint_weeks_since_start_of_RT,
+		   color = timepoint_weeks_since_start_of_RT)) +
+	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 1.5, alpha = 1) +
+	scale_fill_viridis(discrete = TRUE) +
+	scale_color_viridis(discrete = TRUE) +
+	scale_x_continuous(limits = c(1, 7),
 			   breaks = c(2, 3, 4, 5, 6, 7),
-			   labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))) +
-	xlab("") +
-	ylab("cfDNA Aligned HPV Read Pairs") +
+			   labels = scientific_1e(10^c(2, 3, 4, 5, 6, 7))) +
+	scale_y_discrete(breaks = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+			 labels = c("Week 5", "Week 3", "Week 2", "Week 1", "Pre-treatment")) +
+	xlab("cfDNA Aligned HPV Read Pairs") +
+	ylab("") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
-	      axis.text.y = element_text(size = 12))
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10)) +
+	guides(fill = FALSE, color = FALSE) +
+	coord_cartesian(clip = "off")
 
-pdf(file = "../res/Number_Read_Pairs_bywk.pdf", width = 3.75, height = 3.25)
+pdf(file = "../res/Number_Read_Pairs_bywk.pdf", width = 3.5, height = 2.5)
 print(plot_)
 dev.off()
 
@@ -354,20 +364,30 @@ plot_ = idx_metrics_ft %>%
 	dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
 	dplyr::summarize(mean_af = mean(mean_af)) %>%
 	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3", "wk5")) %>%
-	ggplot(aes(x = timepoint_weeks_since_start_of_RT, y = (mean_af*100)+(1E-3))) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
-	scale_x_discrete() +
-	scale_y_log10(limits = c(NA, 100),
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = factor(x = timepoint_weeks_since_start_of_RT,
+								 levels = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+								 ordered = TRUE)) %>%
+	ggplot(aes(x = (mean_af*100)+(1E-3), y = timepoint_weeks_since_start_of_RT,
+		   fill = timepoint_weeks_since_start_of_RT,
+		   color = timepoint_weeks_since_start_of_RT)) +
+	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 2, alpha = 1) +
+	scale_fill_viridis(discrete = TRUE) +
+	scale_color_viridis(discrete = TRUE) +
+	scale_x_log10(limits = c(NA, 110),
 		      breaks = c(.001, .01, .1, 1, 10, 100),
 		      labels = c(".001", ".01", ".1", "1", "10", "100")) +
-	xlab("") +
-	ylab("Mean PCM AF (%)") +
+	scale_y_discrete(breaks = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+			 labels = c("Week 5", "Week 3", "Week 2", "Week 1", "Pre-treatment")) +
+	xlab("Mean PCM AF (%)") +
+	ylab("") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
-	      axis.text.y = element_text(size = 12))
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10)) +
+	guides(fill = FALSE, color = FALSE) +
+	coord_cartesian(clip = "off")
 
-pdf(file = "../res/Mean_AF_bywk.pdf", width = 3.75, height = 3.25)
+pdf(file = "../res/Mean_AF_bywk.pdf", width = 3.5, height = 2.5)
 print(plot_)
 dev.off()
