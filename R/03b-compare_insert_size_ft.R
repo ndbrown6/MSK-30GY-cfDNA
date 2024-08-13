@@ -729,3 +729,82 @@ plot_ = dplyr::tibble(variables = variables_filtered,
 pdf(file = "../res/Linear_Regression_Stepwise_AIC.pdf", width = 3.35, height = 4)
 print(plot_)
 dev.off()
+
+
+idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+	      	 readr::type_convert() %>%
+		 dplyr::select(sample_name = SAMPLE_NAME, contig = CHROMOSOME, aligned_reads = ALIGNED_READS, fragment_length = FRAGMENT_LENGTH) %>%
+		 dplyr::left_join(dplyr::tibble(contig = target_contigs,
+				       		chromosome = names(target_contigs)),
+				  by = "contig") %>%
+		 dplyr::filter(fragment_length == 37) %>%
+		 dplyr::filter(!is.na(chromosome)) %>%
+		 dplyr::left_join(manifest, by = "sample_name") %>%
+		 dplyr::filter(chromosome == hpv_type_wes_wgs) %>%
+		 dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+			 timepoint_days_since_start_of_RT >= 0 & timepoint_days_since_start_of_RT < 7 ~ "wk0",
+			 timepoint_days_since_start_of_RT >= 7 & timepoint_days_since_start_of_RT < 14 ~ "wk1",
+			 timepoint_days_since_start_of_RT >= 14 & timepoint_days_since_start_of_RT < 21 ~ "wk2",
+			 timepoint_days_since_start_of_RT >= 21 & timepoint_days_since_start_of_RT < 28 ~ "wk3",
+			 timepoint_days_since_start_of_RT >= 28 & timepoint_days_since_start_of_RT < 35 ~ "wk4",
+			 timepoint_days_since_start_of_RT >= 35 & timepoint_days_since_start_of_RT < 42 ~ "wk5",
+			 timepoint_days_since_start_of_RT >= 42 & timepoint_days_since_start_of_RT < 49 ~ "wk6",
+			 timepoint_days_since_start_of_RT >= 49 ~ "wk7+",
+			 TRUE ~ "Pre-treatment"
+		 )) %>%
+		 dplyr::left_join(mutation_smry %>%
+				  dplyr::filter(FILTER == "PASS") %>%
+				  dplyr::group_by(Tumor_Sample_Barcode) %>%
+				  dplyr::summarize(mean_af = mean(t_maf)) %>%
+				  dplyr::ungroup() %>%
+				  dplyr::rename(sample_name = Tumor_Sample_Barcode),
+				  by = "sample_name")
+
+fit_ = lm(formula = aligned_reads ~ mean_af, data = idx_metrics_ft %>%
+	  					    dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+	  					    dplyr::mutate(mean_af = log10((mean_af*100 + 1e-3)),
+								  aligned_reads = log10(aligned_reads + 1e-3)) %>%
+	  					    dplyr::select(aligned_reads, mean_af) %>%
+	  					    as.data.frame())
+
+resi_ = dplyr::tibble(patient_id_mskcc = idx_metrics_ft %>%
+		      			 dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+		      			 .[["patient_id_mskcc"]],
+		      mean_af = fit_$model$mean_af,
+		      aligned_reads = fit_$model$aligned_reads,
+		      aligned_reads_residuals = fit_$residuals,
+		      hpv_type_wes_wgs = idx_metrics_ft %>%
+		      			 dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+		      			 .[["hpv_type_wes_wgs"]],
+		      timepoint_weeks_since_start_of_RT = idx_metrics_ft %>%
+		      					  dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+		      					  .[["timepoint_weeks_since_start_of_RT"]])
+
+plot_ = resi_ %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("wk1", "wk2", "wk3", "wk5")) %>%
+	ggplot(aes(x = hpv_panel_copynumber, y = aligned_reads_residuals)) +
+	geom_smooth(stat = "smooth", method = "glm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
+	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
+	scale_x_log10(limits = c(.4, 250),
+		      breaks = c(1, 10, 100),
+		      labels = c("1", "10", "100")) +
+	scale_y_continuous(limits = c(-2.0, 2.5),
+			   breaks = c(-2, -1, 0, 1, 2),
+			   labels = scientific_10(10^c(-2, -1, 0, 1, 2))) +
+	xlab("Primary Tumor HPV Copies") +
+	ylab("cfDNA Adjusted HPV Read Pairs") +
+	stat_cor(method = "spearman") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
+	      panel.spacing = unit(1, "lines"),
+	      strip.background = element_rect(colour="white", fill="white")) +
+	facet_wrap(~timepoint_weeks_since_start_of_RT, scales = "free")
+
+pdf(file = "../res/HPV_Copy_Number_Total_Reads_Residuals_bywk.pdf", width = 3.35*1.5, height = 3*1.5)
+print(plot_)
+dev.off()

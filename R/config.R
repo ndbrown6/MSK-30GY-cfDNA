@@ -35,6 +35,7 @@ suppressPackageStartupMessages(library("pROC"))
 suppressPackageStartupMessages(library("MASS"))
 suppressPackageStartupMessages(library("rpart"))
 suppressPackageStartupMessages(library("klaR"))
+suppressPackageStartupMessages(library("PMCMRplus"))
 
 
 registerDoMC(8)

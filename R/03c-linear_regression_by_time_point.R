@@ -105,201 +105,52 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 		    TRUE ~ "Pre-treatment"
 	         ))
 
-data_ = idx_metrics_ft %>%
-	dplyr::filter(timepoint_weeks_since_start_of_RT=="Pre-treatment") %>%
-	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::group_by(patient_id_mskcc) %>%
-	dplyr::summarize(mean_af = mean(mean_af*100),
-			 aligned_reads = mean(log10(aligned_reads)),
-			 concentration_ng_uL = mean(concentration_ng_uL)) %>%
-        dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-        dplyr::select(aligned_reads,
-		      mean_af,
-		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
-		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
-	readr::type_convert() %>%
-	dplyr::mutate(mean_af = scale(mean_af),
-		      cfdna_concentration = scale(cfdna_concentration),
-		      hpv_copynumber = scale(hpv_copynumber),
-		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
-		      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
-        tidyr::drop_na() %>%
-        as.data.frame()
+fit_ = wk = list()
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3", "wk6")) {
+	data_ = idx_metrics_ft %>%
+		dplyr::filter(timepoint_weeks_since_start_of_RT==i) %>%
+		dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+		dplyr::group_by(patient_id_mskcc) %>%
+		dplyr::summarize(mean_af = mean(mean_af*100),
+				 aligned_reads = mean(log10(aligned_reads)),
+				 concentration_ng_uL = mean(concentration_ng_uL)) %>%
+		dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+		dplyr::select(aligned_reads,
+			      mean_af,
+			      cfdna_concentration = concentration_ng_uL,
+			      hpv_copynumber = hpv_panel_copynumber,
+			      tumor_purity = purity.wes,
+			      tumor_volume = PlanVol,
+			      tumor_size = primary_tumor_size_cm,
+			      age = Age,
+			      t_stage = TStage,
+			      n_stage = NStage,
+			      smoking_status = Smoking2,
+			      hypoxia = Simplified_hypoxia_group,
+			      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
+			      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
+		readr::type_convert() %>%
+		dplyr::mutate(mean_af = scale(mean_af),
+			      cfdna_concentration = scale(cfdna_concentration),
+			      hpv_copynumber = scale(hpv_copynumber),
+			      tumor_volume = scale(tumor_volume),
+			      tumor_size = scale(tumor_size),
+			      age = scale(age),
+			      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
+			      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
+		tidyr::drop_na() %>%
+		as.data.frame()
 
-fit_ = lm(formula = aligned_reads ~ ., data = data_)
-wk0 = summary(fit_)
+	fit_[[i]] = lm(formula = aligned_reads ~ ., data = data_)
+	wk[[i]] = summary(fit_[[i]])
+}
 
-data_ = idx_metrics_ft %>%
-	dplyr::filter(timepoint_weeks_since_start_of_RT=="wk1") %>%
-	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::group_by(patient_id_mskcc) %>%
-	dplyr::summarize(mean_af = mean(mean_af*100),
-			 aligned_reads = mean(log10(aligned_reads)),
-			 concentration_ng_uL = mean(concentration_ng_uL)) %>%
-        dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-        dplyr::select(aligned_reads,
-		      mean_af,
-		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
-		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
-	readr::type_convert() %>%
-	dplyr::mutate(mean_af = scale(mean_af),
-		      cfdna_concentration = scale(cfdna_concentration),
-		      hpv_copynumber = scale(hpv_copynumber),
-		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
-		      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
-        tidyr::drop_na() %>%
-        as.data.frame()
-
-fit_ = lm(formula = aligned_reads ~ ., data = data_)
-wk1 = summary(fit_)
-
-data_ = idx_metrics_ft %>%
-	dplyr::filter(timepoint_weeks_since_start_of_RT=="wk2") %>%
-	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::group_by(patient_id_mskcc) %>%
-	dplyr::summarize(mean_af = mean(mean_af*100),
-			 aligned_reads = mean(log10(aligned_reads)),
-			 concentration_ng_uL = mean(concentration_ng_uL)) %>%
-        dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-        dplyr::select(aligned_reads,
-		      mean_af,
-		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
-		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
-	readr::type_convert() %>%
-	dplyr::mutate(mean_af = scale(mean_af),
-		      cfdna_concentration = scale(cfdna_concentration),
-		      hpv_copynumber = scale(hpv_copynumber),
-		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
-		      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
-        tidyr::drop_na() %>%
-        as.data.frame()
-
-fit_ = lm(formula = aligned_reads ~ ., data = data_)
-wk2 = summary(fit_)
-
-data_ = idx_metrics_ft %>%
-	dplyr::filter(timepoint_weeks_since_start_of_RT=="wk3") %>%
-	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::group_by(patient_id_mskcc) %>%
-	dplyr::summarize(mean_af = mean(mean_af*100),
-			 aligned_reads = mean(log10(aligned_reads)),
-			 concentration_ng_uL = mean(concentration_ng_uL)) %>%
-        dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-        dplyr::select(aligned_reads,
-		      mean_af,
-		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
-		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
-	readr::type_convert() %>%
-	dplyr::mutate(mean_af = scale(mean_af),
-		      cfdna_concentration = scale(cfdna_concentration),
-		      hpv_copynumber = scale(hpv_copynumber),
-		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
-		      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
-        tidyr::drop_na() %>%
-        as.data.frame()
-
-fit_ = lm(formula = aligned_reads ~ ., data = data_)
-wk3 = summary(fit_)
-
-data_ = idx_metrics_ft %>%
-	dplyr::filter(timepoint_weeks_since_start_of_RT=="wk6") %>%
-	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::group_by(patient_id_mskcc) %>%
-	dplyr::summarize(mean_af = mean(mean_af*100),
-			 aligned_reads = mean(log10(aligned_reads)),
-			 concentration_ng_uL = mean(concentration_ng_uL)) %>%
-        dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-        dplyr::select(aligned_reads,
-		      mean_af,
-		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
-		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
-	readr::type_convert() %>%
-	dplyr::mutate(mean_af = scale(mean_af),
-		      cfdna_concentration = scale(cfdna_concentration),
-		      hpv_copynumber = scale(hpv_copynumber),
-		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssgsea_cell_cycle = scale(ssgsea_cell_cycle),
-		      ssgsea_cell_death = scale(ssgsea_cell_death)) %>%
-        tidyr::drop_na() %>%
-        as.data.frame()
-
-fit_ = lm(formula = aligned_reads ~ ., data = data_)
-wk5 = summary(fit_)
-
-p_values = do.call(cbind, lapply(list(wk0, wk1, wk2, wk3, wk5), function(x) { x$coefficients[,"Pr(>|t|)"] })) %>%
+p_values = do.call(cbind, lapply(wk, function(x) { x$coefficients[,"Pr(>|t|)"] })) %>%
 	   as.data.frame() %>%
 	   tibble::rownames_to_column("variable") %>%
 	   dplyr::as_tibble() %>%
 	   dplyr::filter(variable != "(Intercept)") %>%
-	   dplyr::rename("Pre-treatment" = V1,
-			 "wk1" = V2,
-			 "wk2" = V3,
-			 "wk3" = V4,
-			 "wk5" = V5)
+	   dplyr::rename(wk5 = wk6)
 	   
 pdf(file = "../res/Linear_Regression_Coefficients_bywk.pdf", width = 3.15, height = 3.5)
 draw(Heatmap(matrix = p_values %>%
@@ -335,11 +186,9 @@ plot_ = idx_metrics_ft %>%
 								 levels = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
 								 ordered = TRUE)) %>%
 	ggplot(aes(x = aligned_reads, y = timepoint_weeks_since_start_of_RT,
-		   fill = timepoint_weeks_since_start_of_RT,
-		   color = timepoint_weeks_since_start_of_RT)) +
-	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 1.5, alpha = 1) +
+		   fill = timepoint_weeks_since_start_of_RT)) +
+	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 1.5, color = "black", alpha = 1) +
 	scale_fill_viridis(discrete = TRUE) +
-	scale_color_viridis(discrete = TRUE) +
 	scale_x_continuous(limits = c(1, 7),
 			   breaks = c(2, 3, 4, 5, 6, 7),
 			   labels = scientific_1e(10^c(2, 3, 4, 5, 6, 7))) +
@@ -350,12 +199,12 @@ plot_ = idx_metrics_ft %>%
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 10),
-	      axis.text.y = element_text(size = 10)) +
-	guides(fill = FALSE, color = FALSE) +
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE) +
 	coord_cartesian(clip = "off")
 
-pdf(file = "../res/Number_Read_Pairs_bywk.pdf", width = 3.5, height = 2.5)
+pdf(file = "../res/Number_Read_Pairs_bywk.pdf", width = 3*1.25, height = 2.5*1.25)
 print(plot_)
 dev.off()
 
@@ -368,11 +217,9 @@ plot_ = idx_metrics_ft %>%
 								 levels = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
 								 ordered = TRUE)) %>%
 	ggplot(aes(x = (mean_af*100)+(1E-3), y = timepoint_weeks_since_start_of_RT,
-		   fill = timepoint_weeks_since_start_of_RT,
-		   color = timepoint_weeks_since_start_of_RT)) +
-	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 2, alpha = 1) +
+		   fill = timepoint_weeks_since_start_of_RT)) +
+	geom_density_ridges2(stat = "density_ridges", bandwidth = .35, scale = 1.5, color = "black", alpha = 1) +
 	scale_fill_viridis(discrete = TRUE) +
-	scale_color_viridis(discrete = TRUE) +
 	scale_x_log10(limits = c(NA, 110),
 		      breaks = c(.001, .01, .1, 1, 10, 100),
 		      labels = c(".001", ".01", ".1", "1", "10", "100")) +
@@ -383,11 +230,50 @@ plot_ = idx_metrics_ft %>%
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 10),
-	      axis.text.y = element_text(size = 10)) +
-	guides(fill = FALSE, color = FALSE) +
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE) +
 	coord_cartesian(clip = "off")
 
-pdf(file = "../res/Mean_AF_bywk.pdf", width = 3.5, height = 2.5)
+pdf(file = "../res/Mean_AF_bywk.pdf", width = 3*1.25, height = 2.5*1.25)
+print(plot_)
+dev.off()
+
+plot_ = clinical %>%
+	dplyr::select(patient_id_mskcc,
+		      `Pre-treatment` = MRI_rawdata_wk0,
+		      `wk1` = MRI_rawdata_wk1,
+		      `wk2` = MRI_rawdata_wk2,
+		      `wk3` = MRI_rawdata_wk3,
+		      `wk5` = MRI_rawdata_wk4) %>%
+	reshape2::melt(variable.name = "timepoint_weeks_since_start_of_RT", value.name = "MRI_volume") %>%
+	dplyr::left_join(manifest %>%
+			 dplyr::group_by(patient_id_mskcc) %>%
+			 dplyr::summarize(hpv_type_wes_wgs = unique(hpv_type_wes_wgs)),
+			 by = "patient_id_mskcc") %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3", "wk5")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = factor(x = timepoint_weeks_since_start_of_RT,
+								 levels = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+								 ordered = TRUE)) %>%
+	ggplot(aes(x = MRI_volume, y = timepoint_weeks_since_start_of_RT,
+		   fill = timepoint_weeks_since_start_of_RT)) +
+	geom_density_ridges2(stat = "density_ridges", bandwidth = .095, scale = 1.5, color = "black", alpha = 1) +
+	scale_fill_viridis(discrete = TRUE) +
+	scale_x_log10(labels = scientific_10) +
+	scale_y_discrete(breaks = c("wk5", "wk3", "wk2", "wk1", "Pre-treatment"),
+			 labels = c("Week 5", "Week 3", "Week 2", "Week 1", "Pre-treatment")) +
+	xlab(expression("MRI Volume ("~mm^3~")")) +
+	ylab("") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE) +
+	coord_cartesian(clip = "off")
+
+pdf(file = "../res/MRI_Volume_bywk.pdf", width = 3*1.25, height = 2.5*1.25)
 print(plot_)
 dev.off()
