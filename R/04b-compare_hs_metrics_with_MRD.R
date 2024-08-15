@@ -251,3 +251,40 @@ plot_ = do.call(bind_rows, data_) %>%
 pdf(file = "../res/Number_Read_Pairs_Aligned_by_targets_HPV-16.pdf", width = 3.25*2.75, height = 3.25*3)
 print(plot_)
 dev.off()
+
+r = do.call(rbind, lapply(data_, function(x) { dplyr::tibble(rho = cor.test(x$x, x$y, method = "spearman", na.rm=TRUE)$estimate,
+							     xlab = x$xlab[1],
+							     ylab = x$ylab[1])} )) %>%
+    as.data.frame()
+m = matrix(1, nrow = 6, ncol = 6, dimnames = list(unique(c(r$xlab, r$ylab)),
+						  unique(c(r$xlab, r$ylab))))
+for (i in 1:nrow(r)) {
+	m[r[i,"xlab"], r[i,"ylab"]] = r[i,"rho"]
+	m[r[i,"ylab"], r[i,"xlab"]] = r[i,"rho"]
+}
+
+pdf(file = "../res/Cross_Correlation_.targets_HPV-16.pdf", width = 3.5, height = 3)
+draw(Heatmap(matrix = m %>%
+	     	      as.matrix(),
+	     col = c(rev(viridis(n = 10)), rep("#440154FF", 3)),
+	     name = "rho",
+	     rect_gp = gpar(col = "white", lwd = 1),
+	     border = NA,
+	     
+	     cluster_rows = TRUE,
+	     clustering_distance_rows = "canberra",
+	     clustering_method_rows = "ward.D",
+	     show_row_names = TRUE,
+	     row_names_side = "right",
+	     row_names_gp = gpar(fontsize = 8),
+	     
+	     cluster_columns = TRUE,
+	     clustering_distance_columns = "canberra",
+	     clustering_method_columns = "ward.D",
+	     show_column_names = TRUE,
+	     column_names_side = "bottom",
+	     column_names_gp = gpar(fontsize = 8),
+
+	     use_raster = FALSE,
+	     show_heatmap_legend = TRUE))
+dev.off()
