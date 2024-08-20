@@ -345,7 +345,7 @@ resi_ = dplyr::tibble(patient_id_mskcc = idx_metrics_ft %>%
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	ggplot(aes(x = hpv_panel_copynumber, y = aligned_reads)) +
+	ggplot(aes(x = hpv_panel_copy_number, y = aligned_reads)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10() +
@@ -368,7 +368,7 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	ggplot(aes(x = hpv_panel_copynumber, y = (10^mean_af))) +
+	ggplot(aes(x = hpv_panel_copy_number, y = (10^mean_af))) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10() +
@@ -391,7 +391,7 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	ggplot(aes(x = hpv_panel_copynumber, y = aligned_reads_residuals)) +
+	ggplot(aes(x = hpv_panel_copy_number, y = aligned_reads_residuals)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10() +
@@ -417,8 +417,8 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::mutate(hpv_wgs_copynumber = ifelse(hpv_wgs_copynumber<.1, .1, hpv_wgs_copynumber)) %>%
-	ggplot(aes(x = hpv_wgs_copynumber, y = aligned_reads)) +
+	dplyr::mutate(hpv_wgs_copy_number = ifelse(hpv_wgs_copy_number<.1, .1, hpv_wgs_copy_number)) %>%
+	ggplot(aes(x = hpv_wgs_copy_number, y = aligned_reads)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10(breaks = c(.1, 1, 10, 100),
@@ -442,8 +442,8 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::mutate(hpv_wgs_copynumber = ifelse(hpv_wgs_copynumber<.1, .1, hpv_wgs_copynumber)) %>%
-	ggplot(aes(x = hpv_wgs_copynumber, y = (10^mean_af))) +
+	dplyr::mutate(hpv_wgs_copy_number = ifelse(hpv_wgs_copy_number<.1, .1, hpv_wgs_copy_number)) %>%
+	ggplot(aes(x = hpv_wgs_copy_number, y = (10^mean_af))) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10(breaks = c(.1, 1, 10, 100),
@@ -466,8 +466,8 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	dplyr::mutate(hpv_wgs_copynumber = ifelse(hpv_wgs_copynumber<.1, .1, hpv_wgs_copynumber)) %>%
-	ggplot(aes(x = hpv_wgs_copynumber, y = aligned_reads_residuals)) +
+	dplyr::mutate(hpv_wgs_copy_number = ifelse(hpv_wgs_copy_number<.1, .1, hpv_wgs_copy_number)) %>%
+	ggplot(aes(x = hpv_wgs_copy_number, y = aligned_reads_residuals)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10(breaks = c(.1, 1, 10, 100),
@@ -495,9 +495,9 @@ plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
 	dplyr::mutate(age_cat = case_when(
-		Age < quantile(Age, 1/3, na.rm = TRUE) ~ "1",
-		Age >= quantile(Age, 1/3, na.rm = TRUE) & Age < quantile(Age, 2/3, na.rm = TRUE) ~ "2",
-		Age > quantile(Age, 2/3, na.rm = TRUE) ~ "3",
+		age < quantile(age, 1/3, na.rm = TRUE) ~ "1",
+		age >= quantile(age, 1/3, na.rm = TRUE) & age < quantile(age, 2/3, na.rm = TRUE) ~ "2",
+		age > quantile(age, 2/3, na.rm = TRUE) ~ "3",
 		TRUE ~ ""
 	)) %>%
 	dplyr::filter(age_cat != "") %>%
@@ -533,7 +533,7 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	ggplot(aes(x = PlanVol, y = aligned_reads)) +
+	ggplot(aes(x = plan_volume, y = aligned_reads)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10() +
@@ -559,7 +559,7 @@ dev.off()
 plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
-	ggplot(aes(x = ssGSEA_pathway_CELL_CYCLE, y = aligned_reads)) +
+	ggplot(aes(x = ssgsea_pathway_cell_cycle, y = aligned_reads)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_continuous(limits = c(.35, .60)) +
@@ -587,17 +587,17 @@ data_ = idx_metrics_ft %>%
         dplyr::select(aligned_reads,
 		      mean_af,
 		      cfdna_concentration = concentration_ng_uL,
-		      hpv_copynumber = hpv_panel_copynumber,
-		      tumor_purity = purity.wes,
-		      tumor_volume = PlanVol,
+		      hpv_copynumber = hpv_panel_copy_number,
+		      tumor_purity = purity_wes,
+		      tumor_volume = plan_volume,
 		      tumor_size = primary_tumor_size_cm,
-		      age = Age,
-		      t_stage = TStage,
-		      n_stage = NStage,
-		      smoking_status = Smoking2,
-		      hypoxia = Simplified_hypoxia_group,
-		      ssgsea_cell_cycle = ssGSEA_pathway_CELL_CYCLE,
-		      ssgsea_cell_death = ssGSEA_pathway_CELL_DEATH) %>%
+		      age = age,
+		      t_stage = t_stage,
+		      n_stage = n_stage,
+		      smoking_status = smoking_category_yes_never,
+		      hypoxia = simplified_hypoxia_group,
+		      ssgsea_cell_cycle = ssgsea_pathway_cell_cycle,
+		      ssgsea_cell_death = ssgsea_pathway_cell_death) %>%
 	readr::type_convert() %>%
 	dplyr::mutate(mean_af = scale(mean_af),
 		      cfdna_concentration = scale(cfdna_concentration),
@@ -784,7 +784,7 @@ plot_ = resi_ %>%
 	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
 	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("wk1", "wk2", "wk3", "wk5")) %>%
-	ggplot(aes(x = hpv_panel_copynumber, y = aligned_reads_residuals)) +
+	ggplot(aes(x = hpv_panel_copy_number, y = aligned_reads_residuals)) +
 	geom_smooth(stat = "smooth", method = "glm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
 	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
 	scale_x_log10(limits = c(.4, 250),

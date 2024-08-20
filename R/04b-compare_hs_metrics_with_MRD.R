@@ -263,7 +263,7 @@ for (i in 1:nrow(r)) {
 	m[r[i,"ylab"], r[i,"xlab"]] = r[i,"rho"]
 }
 
-pdf(file = "../res/Cross_Correlation_.targets_HPV-16.pdf", width = 3.5, height = 3)
+pdf(file = "../res/Cross_Correlation_targets_HPV-16.pdf", width = 3.5, height = 3)
 draw(Heatmap(matrix = m %>%
 	     	      as.matrix(),
 	     col = c(rev(viridis(n = 10)), rep("#440154FF", 3)),
@@ -287,4 +287,45 @@ draw(Heatmap(matrix = m %>%
 
 	     use_raster = FALSE,
 	     show_heatmap_legend = TRUE))
+dev.off()
+
+m = m %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("gene_name") %>%
+    reshape2::melt(value.name = "rho")
+
+d = bed_file %>%
+    dplyr::filter(chromosome == "NC001526.4") %>%
+    dplyr::mutate(mid_point = .5*(start + end)) %>%
+    dplyr::mutate(is_half = ifelse(mid_point>(7906/2), 2, 1)) %>%
+    dplyr::mutate(gene_name = paste0(gene_name, "_", start, ":", end)) %>%
+    dplyr::select(gene_name, mid_point) %>%
+    tibble::column_to_rownames("gene_name") %>%
+    dist(x = ., method = "euclidean", diag = TRUE, upper = FALSE) %>%
+    as.matrix() %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("gene_name") %>%
+    reshape2::melt(value.name = "distance") %>%
+    dplyr::mutate(distance = ifelse(distance>(7906/2), 7906-distance, distance))
+
+plot_ = m %>%
+	dplyr::left_join(d, by = c("gene_name", "variable")) %>%
+	dplyr::mutate(x = ifelse(as.character(gene_name)<as.character(variable), as.character(gene_name), as.character(variable))) %>%
+	dplyr::mutate(y = ifelse(as.character(gene_name)<as.character(variable), as.character(variable), as.character(gene_name))) %>%
+	dplyr::filter(!duplicated(paste0(x, y))) %>%
+	ggplot(aes(x = distance, y = rho)) +
+	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 2, se = FALSE) +
+	geom_point(stat = "identity", shape = 21, color = "black", fill = "white", size = 3) +
+	scale_x_continuous(labels = scientific_10) +
+	scale_y_continuous() +
+	xlab("Distance (bp)") +
+	ylab(expression(rho)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 14),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf("../res/Correlation_Distance_targets_HPV-16.pdf", width = 3.25, height = 3.5)
+print(plot_)
 dev.off()
