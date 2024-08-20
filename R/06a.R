@@ -235,6 +235,110 @@ plot_ = aligned_reads %>%
 	      strip.background = element_rect(colour="white", fill="white")) +
 	facet_wrap(~delta, nrow = 2, ncol = 2, scales = "free")
 
-pdf(file = "../res/Log2_Ratio_Tota_Reads_Mean_AF_bywk.pdf", width = 5.25, height = 5.25)
+pdf(file = "../res/Log2_Ratio_Total_Reads_Mean_AF_bywk.pdf", width = 5.25, height = 5.25)
+print(plot_)
+dev.off()
+
+plot_ = aligned_reads %>%
+	dplyr::mutate(delta_aligned_reads = log2(`wk1`/`Pre-treatment`)) %>%
+	dplyr::select(patient_id_mskcc, delta_aligned_reads) %>%
+	dplyr::full_join(clinical %>%
+			 dplyr::mutate(delta_mri = log2(MRI_rawdata_wk1/MRI_rawdata_wk0)) %>% 
+			 dplyr::select(patient_id_mskcc, delta_mri)) %>%
+	dplyr::mutate(delta = "wk1") %>%
+	dplyr::bind_rows(aligned_reads %>%
+			 dplyr::mutate(delta_aligned_reads = log2(`wk2`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_aligned_reads) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk2/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk2")) %>%
+	dplyr::bind_rows(aligned_reads %>%
+			 dplyr::mutate(delta_aligned_reads = log2(`wk3`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_aligned_reads) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk3/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk3")) %>%
+	dplyr::bind_rows(aligned_reads %>%
+			 dplyr::mutate(delta_aligned_reads = log2(`wk5`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_aligned_reads) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk4/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk5")) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(delta %in% c("wk1", "wk2", "wk3", "wk5")) %>%
+	ggplot(aes(x = delta_mri, y = delta_aligned_reads)) +
+	geom_abline(intercept = 0, slope = 1, color = "lightgrey", alpha = .75, size = 1) +
+	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 1.75, se = FALSE) +
+	geom_point(stat = "identity", shape = 21, fill = "white", color = "salmon", alpha = .75, size = 2.5) +
+	stat_cor(method = "spearman", size = 3) +
+	scale_x_continuous(limits = c(-2, 1)) +
+	scale_y_continuous(limits = c(-15, 10)) +
+	xlab(expression(Log[2]~"Ratio MRI Volume")) +
+	ylab(expression(Log[2]~"Ratio cfDNA Aligned HPV Reads Pairs")) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      panel.spacing = unit(1, "lines"),
+	      strip.background = element_rect(colour="white", fill="white")) +
+	facet_wrap(~delta, nrow = 2, ncol = 2, scales = "free")
+
+pdf(file = "../res/Log2_Ratio_Total_Reads_MRI_Volume_bywk.pdf", width = 5.25, height = 5.25)
+print(plot_)
+dev.off()
+
+plot_ = mean_af %>%
+	dplyr::mutate(delta_mean_af = log2(`wk1`/`Pre-treatment`)) %>%
+	dplyr::select(patient_id_mskcc, delta_mean_af) %>%
+	dplyr::full_join(clinical %>%
+			 dplyr::mutate(delta_mri = log2(MRI_rawdata_wk1/MRI_rawdata_wk0)) %>% 
+			 dplyr::select(patient_id_mskcc, delta_mri)) %>%
+	dplyr::mutate(delta = "wk1") %>%
+	dplyr::bind_rows(mean_af %>%
+			 dplyr::mutate(delta_mean_af = log2(`wk2`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_mean_af) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk2/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk2")) %>%
+	dplyr::bind_rows(mean_af %>%
+			 dplyr::mutate(delta_mean_af = log2(`wk3`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_mean_af) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk3/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk3")) %>%
+	dplyr::bind_rows(mean_af %>%
+			 dplyr::mutate(delta_mean_af = log2(`wk5`/`Pre-treatment`)) %>%
+			 dplyr::select(patient_id_mskcc, delta_mean_af) %>%
+			 dplyr::full_join(clinical %>%
+					  dplyr::mutate(delta_mri = log2(MRI_rawdata_wk4/MRI_rawdata_wk0)) %>% 
+					  dplyr::select(patient_id_mskcc, delta_mri)) %>%
+			 dplyr::mutate(delta = "wk5")) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(delta %in% c("wk1", "wk2", "wk3", "wk5")) %>%
+	ggplot(aes(x = delta_mri, y = delta_mean_af)) +
+	geom_abline(intercept = 0, slope = 1, color = "lightgrey", alpha = .75, size = 1) +
+	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 1.75, se = FALSE) +
+	geom_point(stat = "identity", shape = 21, fill = "white", color = "salmon", alpha = .75, size = 2.5) +
+	stat_cor(method = "spearman", size = 3) +
+	scale_x_continuous(limits = c(-2, 1)) +
+	scale_y_continuous(limits = c(-15, 10)) +
+	xlab(expression(Log[2]~"Ratio MRI Volume")) +
+	ylab(expression(Log[2]~"Ratio Mean PCM AF")) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      panel.spacing = unit(1, "lines"),
+	      strip.background = element_rect(colour="white", fill="white")) +
+	facet_wrap(~delta, nrow = 2, ncol = 2, scales = "free")
+
+pdf(file = "../res/Log2_Ratio_Mean_AF_MRI_Volume_bywk.pdf", width = 5.25, height = 5.25)
 print(plot_)
 dev.off()
