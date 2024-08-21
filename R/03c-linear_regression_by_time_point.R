@@ -82,7 +82,7 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 		 dplyr::left_join(dplyr::tibble(contig = target_contigs,
 				       		chromosome = names(target_contigs)),
 				  by = "contig") %>%
-		 dplyr::filter(fragment_length == 37) %>%
+		 dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
 		 dplyr::filter(!is.na(chromosome)) %>%
 		 dplyr::left_join(manifest, by = "sample_name") %>%
 		 dplyr::filter(chromosome == hpv_type_wes_wgs) %>%

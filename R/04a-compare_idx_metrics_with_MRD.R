@@ -136,7 +136,7 @@ smry_ft = dplyr::bind_rows(smry_t_pos %>%
 			   dplyr::select(all_of(intersect(colnames(smry_t_pos), colnames(smry_t_neg)))))
 
 plot_ = idx_metrics_ft %>%
-	dplyr::filter(fragment_length == 37) %>%
+	dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
 	dplyr::left_join(smry_ft %>%
 			 dplyr::select(sample_name, Is_ctDNA),
 			 by = "sample_name") %>%
