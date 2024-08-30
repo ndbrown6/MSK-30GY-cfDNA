@@ -305,15 +305,15 @@ d = bed_file %>%
     as.matrix() %>%
     as.data.frame() %>%
     tibble::rownames_to_column("gene_name") %>%
-    reshape2::melt(value.name = "distance") %>%
-    dplyr::mutate(distance = ifelse(distance>(7906/2), 7906-distance, distance))
+    reshape2::melt(value.name = "linear_distance") %>%
+    dplyr::mutate(circular_distance = ifelse(linear_distance>(7906/2), 7906-linear_distance, linear_distance))
 
 plot_ = m %>%
 	dplyr::left_join(d, by = c("gene_name", "variable")) %>%
 	dplyr::mutate(x = ifelse(as.character(gene_name)<as.character(variable), as.character(gene_name), as.character(variable))) %>%
 	dplyr::mutate(y = ifelse(as.character(gene_name)<as.character(variable), as.character(variable), as.character(gene_name))) %>%
 	dplyr::filter(!duplicated(paste0(x, y))) %>%
-	ggplot(aes(x = distance, y = rho)) +
+	ggplot(aes(x = circular_distance, y = rho)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 2, se = FALSE) +
 	geom_point(stat = "identity", shape = 21, color = "black", fill = "white", size = 3) +
 	scale_x_continuous(labels = scientific_10) +

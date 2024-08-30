@@ -351,23 +351,163 @@ pdf(file = "../res/Log2_Ratio_Mean_AF_MRI_Volume_bywk.pdf", width = 5.25, height
 print(plot_)
 dev.off()
 
-plot_ = aligned_reads %>%
-	dplyr::mutate(wk1 = log2(wk1/`Pre-treatment`),
+plot_ = mean_af %>%
+	dplyr::mutate(wk0 = log2(wk0/`Pre-treatment`),
+		      wk1 = log2(wk1/`Pre-treatment`),
 		      wk2 = log2(wk2/`Pre-treatment`),
 		      wk3 = log2(wk3/`Pre-treatment`),
-		      wk5 = log2(wk5/`Pre-treatment`)) %>%
-	dplyr::select(patient_id_mskcc, wk1, wk2, wk3) %>%
-	dplyr::mutate(is_group = case_when(
-		wk1 < 0 ~ "1",
-		wk1 >= 0 ~ "2",
-		TRUE ~ "NA"
-	)) %>%
+		      wk4 = log2(wk4/`Pre-treatment`),
+		      wk5 = log2(wk5/`Pre-treatment`),
+		      wk6 = log2(wk6/`Pre-treatment`),
+		      `wk7+` = log2(`wk7+`/`Pre-treatment`)) %>%
+	dplyr::select(patient_id_mskcc, wk0, wk1, wk2, wk3, -wk4, wk5, wk6, `wk7+`) %>%
 	readr::type_convert() %>%
-	reshape2::melt(id.vars = c("patient_id_mskcc", "is_group")) %>%
+	reshape2::melt(id.vars = "patient_id_mskcc") %>%
 	tidyr::drop_na() %>%
 	dplyr::mutate(value = case_when(
 		is.infinite(value) ~ -10,
 		TRUE ~ value
 	)) %>%
-	ggplot(aes(x = factor(variable):factor(is_group), y = value)) +
-	geom_boxplot(stat = "boxplot")
+	dplyr::filter(variable!= "wk0") %>%
+	dplyr::filter(variable!= "wk7+") %>%
+	ggplot(aes(x = variable, y = value)) +
+	geom_boxplot(stat = "boxplot", position = "dodge2", outlier.shape = NA, color = "grey5", fill = "white") +
+	geom_beeswarm(shape = 21, dodge.width = 0.75, fill = "white", alpha = .75, size = 2.5, cex = 1) +
+	geom_hline(yintercept = 0, color = "goldenrod3", size = 1, linetype = 3, alpha = .85) +
+	scale_x_discrete(breaks = c("wk1", "wk2", "wk3", "wk4", "wk5", "wk6"),
+			 labels = c("wk1", "wk2", "wk3", "wk4", "wk5", "wk6")) +
+	scale_y_continuous(limits = c(-15, 10)) +
+	xlab("Weeks after CRT") +
+	ylab(expression(Log[2]~"Ratio Mean PCM AF")) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/Log2_Ratio_Mean_AF_bywk.pdf", width = 5.25, height = 5.25)
+print(plot_)
+dev.off()
+
+data_ = aligned_reads %>%
+	dplyr::mutate(wk0 = log2(wk0/`Pre-treatment`),
+		      wk1 = log2(wk1/`Pre-treatment`),
+		      wk2 = log2(wk2/`Pre-treatment`),
+		      wk3 = log2(wk3/`Pre-treatment`),
+		      wk4 = log2(wk4/`Pre-treatment`),
+		      wk5 = log2(wk5/`Pre-treatment`),
+		      wk6 = log2(wk6/`Pre-treatment`),
+		      wk7 = log2(`wk7+`/`Pre-treatment`)) %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	readr::type_convert() %>%
+        dplyr::select(wk0, wk1, wk2, wk3, -wk4, wk5, wk6, `wk7`,
+		      crt_randomization, primary_tumor_size_cm, neck_dissection_yes_no,
+		      age, sex, t_stage, n_stage, smoking_category_yes_never, simplified_hypoxia_group,
+		      plan_volume, hypoxia_resolution) %>%
+       readr::type_convert()
+
+fit_ = list()
+
+fit_[[1]] = data_ %>%
+	    dplyr::select(-wk1, -wk2, -wk3, -wk5, -wk6, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk0)) %>%
+	    lm(formula = wk0 ~ ., data = .) %>%
+	    summary()
+
+fit_[[2]] = data_ %>%
+	    dplyr::select(-wk0, -wk2, -wk3, -wk5, -wk6, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk1)) %>%
+	    lm(formula = wk1 ~ ., data = .) %>%
+	    summary()
+
+fit_[[3]] = data_ %>%
+	    dplyr::select(-wk0, -wk1, -wk3, -wk5, -wk6, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk2)) %>%
+	    lm(formula = wk2 ~ ., data = .) %>%
+	    summary()
+
+fit_[[4]] = data_ %>%
+	    dplyr::select(-wk0, -wk1, -wk2, -wk5, -wk6, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk3)) %>%
+	    lm(formula = wk3 ~ ., data = .) %>%
+	    summary()
+
+fit_[[5]] = data_ %>%
+	    dplyr::select(-wk0, -wk1, -wk2, -wk3, -wk6, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk5)) %>%
+	    lm(formula = wk5 ~ ., data = .) %>%
+	    summary()
+
+fit_[[6]] = data_ %>%
+	    dplyr::select(-wk0, -wk1, -wk2, -wk3, -wk5, -wk7) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk6)) %>%
+	    lm(formula = wk6 ~ ., data = .) %>%
+	    summary()
+
+fit_[[7]] = data_ %>%
+	    dplyr::select(-wk0, -wk1, -wk2, -wk3, -wk5, -wk6) %>%
+	    tidyr::drop_na() %>%
+	    dplyr::filter(!is.infinite(wk7)) %>%
+	    lm(formula = wk7 ~ ., data = .) %>%
+	    summary()
+
+p_values = do.call(cbind, lapply(fit_, function(x) { (x$coefficients[,"Pr(>|t|)"])})) %>%
+	   as.data.frame() %>%
+	   tibble::rownames_to_column("variable") %>%
+	   dplyr::as_tibble() %>%
+	   dplyr::filter(variable != "(Intercept)") %>%
+	   dplyr::rename(wk0 = V1, wk1 = V2, wk2 = V3, wk3 = V4, wk5 = V5, wk6 = V6, wk7 = V7) %>%
+	   reshape2::melt(variable.name = "week", value.name = "p_value") %>%
+	   dplyr::mutate(fdr = p.adjust(p_value, "fdr"))
+
+pdf(file = "../res/Linear_Regression_Coefficients_Log2_Ratio_bywk.pdf", width = 4.15, height = 3.5)
+draw(Heatmap(matrix = p_values %>%
+	     	      reshape2::dcast(variable ~ week, value.var = "fdr") %>%
+	     	      dplyr::select(-wk0, -wk5, -wk7) %>%
+	     	      tibble::column_to_rownames("variable") %>%
+	     	      as.matrix(),
+	     col = viridis(n = 10),
+	     name = "P-value",
+	     rect_gp = gpar(col = "white", lwd = 1),
+	     border = NA,
+	     
+	     cluster_rows = TRUE,
+	     clustering_distance_rows = "euclidean",
+	     clustering_method_rows = "complete",
+	     show_row_names = TRUE,
+	     row_names_side = "right",
+	     row_names_gp = gpar(fontsize = 8),
+	     
+	     cluster_columns = FALSE,
+	     show_column_names = TRUE,
+	     column_title_side = "bottom",
+	     column_title_gp = gpar(fontsize = 8),
+
+	     use_raster = FALSE,
+	     show_heatmap_legend = TRUE))
+dev.off()
+
+plot_ = data_ %>%
+	dplyr::select(neck_dissection_yes_no, wk6) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(!is.infinite(wk6)) %>%
+	ggplot(aes(x = neck_dissection_yes_no, y = wk6)) +
+	geom_boxplot(stat = "boxplot", position = "dodge2", outlier.shape = NA, color = "grey5", fill = "white") +
+	geom_beeswarm(shape = 21, dodge.width = 0.75, fill = "white", alpha = .75, size = 2.5, cex = 1) +
+	geom_hline(yintercept = 0, color = "goldenrod3", size = 1, linetype = 3, alpha = .85) +
+	scale_x_discrete() +
+	scale_y_continuous() +
+	xlab("Neck dissection") +
+	ylab(expression(Log[2]~"Ratio Mean PCM AF")) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+

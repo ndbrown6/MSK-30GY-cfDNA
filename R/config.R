@@ -37,6 +37,7 @@ suppressPackageStartupMessages(library("rpart"))
 suppressPackageStartupMessages(library("klaR"))
 suppressPackageStartupMessages(library("PMCMRplus"))
 suppressPackageStartupMessages(library("ellipse"))
+suppressPackageStartupMessages(library("ggbeeswarm"))
 
 
 registerDoMC(8)

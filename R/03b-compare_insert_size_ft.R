@@ -275,18 +275,18 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 				       by = "sample_name")
 
 plot_ = insert_size_metrics %>%
-	ggplot(aes(x = mean_insert_size, y = (mean_af*100)+(1E-3), color = chromosome)) +
+	ggplot(aes(x = (mean_af*100)+(1E-3), y = mean_insert_size, color = chromosome)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 1.75, se = FALSE) +
 	geom_point(stat = "identity", shape = 21, fill = "white", alpha = .75, size = 2.5) +
 	stat_cor(data = insert_size_metrics,
-		 mapping = aes(x = mean_insert_size, y = (mean_af*100)+(1E-3)),
+		 mapping = aes(x = (mean_af*100)+(1E-3), y = mean_insert_size),
 		 method = "spearman", size = 4, inherit.aes = FALSE) +
 	scale_color_brewer(type = "qual", palette = 6) +
-	scale_x_continuous(limits = c(25, 125)) +
-	scale_y_log10(limits = c(1e-3, 110),
+	scale_x_log10(limits = c(1e-3, 110),
 		      labels = scientific_10) +
-	xlab("Mean HPV Insert Size (bp)") +
-	ylab("Mean PCM AF (%)") +
+	scale_y_continuous(limits = c(25, 125)) +
+	xlab("Mean PCM AF (%)") +
+	ylab("Mean HPV Insert Size (bp)") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
@@ -299,18 +299,18 @@ print(plot_)
 dev.off()
 
 plot_ = idx_metrics_ft %>%
-	ggplot(aes(x = aligned_reads, y = (mean_af*100)+(1E-3), color = chromosome)) +
+	ggplot(aes(x = (mean_af*100)+(1E-3), y = aligned_reads, color = chromosome)) +
 	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, color = "goldenrod3", size = 1.75, se = FALSE) +
 	geom_point(stat = "identity", shape = 21, fill = "white", alpha = .75, size = 2.5) +
 	stat_cor(data = idx_metrics_ft,
-		 mapping = aes(x = aligned_reads, y = (mean_af*100)+(1E-3)),
+		 mapping = aes(x = (mean_af*100)+(1E-3), y = aligned_reads),
 		 method = "spearman", size = 4, inherit.aes = FALSE) +
 	scale_color_brewer(type = "qual", palette = 6) +
-	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(limits = c(1e-3, 110),
+	scale_x_log10(limits = c(1e-3, 110),
 		      labels = scientific_10) +
-	xlab("Aligned HPV Read Pairs") +
-	ylab("Mean PCM AF (%)") +
+	scale_y_log10(labels = scientific_10) +
+	xlab("Mean PCM AF (%)") +
+	ylab("Aligned HPV Read Pairs") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),

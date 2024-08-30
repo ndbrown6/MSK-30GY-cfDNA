@@ -165,9 +165,11 @@ dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
 dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
 dplyr::summarize(min_vars_input = min(`MRD-Landmark_Input_Variant_Count`),
 		 median_vars_input = median(`MRD-Landmark_Input_Variant_Count`),
+		 mean_vars_input = mean(`MRD-Landmark_Input_Variant_Count`),
 		 max_vars_input = max(`MRD-Landmark_Input_Variant_Count`),
 		 min_vars_pf = min(`MRD-Landmark_Input_Variants_Passing_Filter`),
 		 median_vars_pf = median(`MRD-Landmark_Input_Variants_Passing_Filter`),
+		 mean_vars_pf = mean(`MRD-Landmark_Input_Variants_Passing_Filter`),
 		 max_vars_pf = max(`MRD-Landmark_Input_Variants_Passing_Filter`)) %>%
 reshape2::melt() %>%
 dplyr::rename(Statistic = variable, `#` = value) %>%
@@ -569,7 +571,7 @@ color_palette = list(CRT_randomization = CRT_randomization,
 
 pdf(file = "../res/OncoPrint_Primary_Tumors.pdf", width = 15, height = 11)
 oncoplot(maf = subsetMaf(maf, tsb = input_vars %>% dplyr::filter(!is.na(`# PF variants`)) %>% .[["Tumor_Sample_Barcode"]]),
-	 minMut = 3,
+	 minMut = 4,
  	 drawRowBar = FALSE,
  	 drawColBar = TRUE,
 	 topBarData = input_vars,
@@ -590,9 +592,9 @@ oncoplot(maf = subsetMaf(maf, tsb = input_vars %>% dplyr::filter(!is.na(`# PF va
 	 annotationColor = color_palette,
 	 sortByAnnotation = FALSE,
  	 additionalFeature = c("is_tracking", TRUE),
- 	 additionalFeatureCol = "gray70",
+ 	 additionalFeatureCol = "white",
  	 additionalFeatureCex = 1.5,
-	 fontSize = .65,
+	 fontSize = 0.95,
 	 SampleNamefontSize = 1.05,
 	 fill = TRUE)
 dev.off()
