@@ -38,6 +38,15 @@ suppressPackageStartupMessages(library("klaR"))
 suppressPackageStartupMessages(library("PMCMRplus"))
 suppressPackageStartupMessages(library("ellipse"))
 suppressPackageStartupMessages(library("ggbeeswarm"))
+suppressPackageStartupMessages(library("corrplot"))
+suppressPackageStartupMessages(library("org.Hs.eg.db"))
+suppressPackageStartupMessages(library("GSVA"))
+suppressPackageStartupMessages(library("GSVAdata"))
+suppressPackageStartupMessages(library("GSEABase"))
+suppressPackageStartupMessages(library("fgsea"))
+suppressPackageStartupMessages(library("genefilter"))
+suppressPackageStartupMessages(library("limma"))
+
 
 
 registerDoMC(8)
@@ -80,6 +89,8 @@ url_insert_summary_ft <- "../data/insert_summary_ft.txt"
 
 url_gatk_summary <- "../data/gatk_summary.txt"
 
+url_tpm_by_gene <- "../data/tpm_by_gene.txt"
+
 target_contigs <- c("HPV-16" = "NC001526.4",
 		    "HPV-18" = "NC001357.1",
 		    "HPV-31" = "J04353.1",
@@ -94,6 +105,26 @@ target_contigs <- c("HPV-16" = "NC001526.4",
 	parse(text=gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), , fixed = TRUE))
 }
 
+'log_10' <- function(x) {
+	parse(text=gsub("+", "", gsub("e", " %.% 10^-", scales::scientific_format()(x)), fixed=TRUE))
+}
+
+
 'str_split' <- function(x, split, n) {
 	return(invisible(unlist(strsplit(x, split = split))[n]))
+}
+
+'fGSEA' <- function(fold_change, gmt_file, pval = 1) {
+	set.seed(54321)
+	msig_db = fgsea::gmtPathways(gmt_file)
+	gsea = fgsea::fgsea(pathways = msig_db,
+			    stats = fold_change,
+			    minSize = 5,
+			    maxSize = 500,
+			    nperm = 10000) %>% 
+		dplyr::as_tibble() %>% 
+		dplyr::filter(padj < !!pval) %>% 
+		dplyr::arrange(desc(NES))
+	
+	return(invisible(gsea))
 }

@@ -56,7 +56,7 @@ dplyr::summarize(n = n()) %>%
 dplyr::ungroup() %>%
 dplyr::mutate(patient_number = 1:n()) %>%
 dplyr::select(patient_number, patient_id = patient_id_mskcc, n) %>%
-pander::pander()
+pander::pander(cpation = "Number of unique patients with MRD assay")
 
 #==================================================
 ## Number of samples per patient
@@ -80,7 +80,7 @@ dplyr::ungroup() %>%
 dplyr::summarize(mean_n_samples = mean(n),
 		 min_n_samples = min(n),
 		 max_n_samples = max(n)) %>%
-pander::pander()
+pander::pander(caption = "Number of samples per patient")
 
 #==================================================
 ## Number of patient per HPV subtype
@@ -104,7 +104,7 @@ dplyr::ungroup() %>%
 dplyr::group_by(hpv_type_wes_wgs) %>%
 dplyr::summarize(n_patients = n()) %>%
 dplyr::mutate(`%_patients` = 100*n_patients/sum(n_patients)) %>%
-pander::pander()
+pander::pander(caption = "Number of patient per HPV subtype")
 
 plot_ = manifest %>%
 	dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -173,7 +173,7 @@ dplyr::summarize(min_vars_input = min(`MRD-Landmark_Input_Variant_Count`),
 		 max_vars_pf = max(`MRD-Landmark_Input_Variants_Passing_Filter`)) %>%
 reshape2::melt() %>%
 dplyr::rename(Statistic = variable, `#` = value) %>%
-pander::pander()
+pander::pander(caption = "Number of variants per sample")
 
 #==================================================
 ## ctDNA HPV-MRD patient summary
@@ -302,8 +302,7 @@ plot_ = smry__mrd %>%
 pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point.pdf", width = 2.75*2, height = 3.25)
 print(plot_)
 dev.off()
-			 
-
+		 
 #########################################################
 # (+) Samples with mean AF > 5% from MRD assay
 # (+) Samples with HPV subtype in assay
@@ -441,160 +440,4 @@ plot_ = smry_ft %>%
 
 pdf(file = "../res/ctDNA_Fraction_by_Time_Point.pdf", width = 2.95, height = 3.25)
 print(plot_)
-dev.off()
-
-#==================================================
-## oncoprint of patients/ mutations
-#==================================================
-preanalytical_conditions = readr::read_tsv(file = url_preanalytical_conidtions, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-			   readr::type_convert()
-
-hpv_smry = readr::read_tsv(file = url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	   readr::type_convert() %>%
-	   dplyr::mutate(patient_id_mskcc = gsub(pattern = "-T", replacement = "", x= patient_name, fixed = TRUE)) %>%
-	   dplyr::mutate(hpv_type_wes = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE)) %>%
-	   dplyr::mutate(hpv_type_wgs = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE)) %>%
-	   dplyr::mutate(hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE)) %>%
-	   dplyr::mutate(hpv_type_wes_wgs = case_when(
-		   is.na(hpv_type_wes_wgs) ~ "Unknown",
-		   TRUE ~ hpv_type_wes_wgs
-	   ))
-
-clinical = readr::read_tsv(file = url_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	   readr::type_convert()
-
-manifest = readr::read_tsv(file = url_manifest, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	   readr::type_convert() %>%
-	   dplyr::filter(!is.na(bam_file_name_hpv)) %>%
-	   dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae)) %>%
-	   dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
-	   dplyr::mutate(patient_id_mskcc = case_when(
-		   is.na(patient_id_mskcc) & sample_id_mskcc=="21-144-03654" ~ "CTMS-164",
-		   TRUE ~ patient_id_mskcc
-	   )) %>%
-	   dplyr::mutate(sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)) %>%
-	   dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
-
-mutation_smry = readr::read_tsv(file = url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-		readr::type_convert() %>%
-		dplyr::mutate(is_tracking = TRUE) %>%
-		dplyr::group_by(Tumor_Sample_Barcode, Chromosome, Start_Position, End_Position, Reference_Allele, Tumor_Seq_Allele2) %>%
-		dplyr::summarize(is_tracking = any(is_tracking)) %>%
-		dplyr::ungroup() %>%
-		dplyr::rename(sample_name = Tumor_Sample_Barcode) %>%
-		dplyr::left_join(manifest, by = "sample_name") %>%
-		dplyr::select(Tumor_Sample_Barcode = patient_id_mskcc,
-			      Chromosome, Start_Position, End_Position, Reference_Allele, Tumor_Seq_Allele2, is_tracking) %>%
-		dplyr::mutate(Chromosome = gsub(pattern = "chr", replacement = "", x = Chromosome, fixed = TRUE)) %>%
-		dplyr::mutate(Tumor_Sample_Barcode = paste0(Tumor_Sample_Barcode, "-T"))
-		
-gene_coords = readr::read_tsv(file = url_gene_coords, col_names = FALSE, col_types = cols(.default = col_character())) %>%
-	      readr::type_convert()
-
-all_vars = readr::read_tsv(file = url_tumor_variants, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	   readr::type_convert() %>%
-	   dplyr::mutate(is_present = Hugo_Symbol %in% gene_coords$X2) %>%
-	   dplyr::left_join(mutation_smry, by = c("Tumor_Sample_Barcode", "Chromosome", "Start_Position", "End_Position", "Reference_Allele", "Tumor_Seq_Allele2")) %>%
-	   dplyr::filter(is_present) %>%
-	   dplyr::filter(Hugo_Symbol != "HLA-B" | is_tracking)
-
-all_vars %>%
-dplyr::left_join(all_vars %>%
-		 dplyr::group_by(Hugo_Symbol) %>%
-		 dplyr::summarize(n = n()) %>%
-		 dplyr::arrange(desc(n)) %>%
-		 dplyr::slice(1:5),
-		 by = "Hugo_Symbol") %>%
-dplyr::left_join(all_vars %>%
-		 dplyr::group_by(Hugo_Symbol) %>%
-		 dplyr::summarize(is_gene_tracking = any(is_tracking)),
-		 by = "Hugo_Symbol") %>%
-dplyr::filter(!is.na(n) | is_gene_tracking) %>%
-dplyr::mutate(Tumor_Sample_Barcode = gsub(pattern = "-T", replacement = "", x = Tumor_Sample_Barcode)) %>%
-dplyr::left_join(readr::read_tsv(file = url_hotspots, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	         readr::type_convert(),
-		 by = c("Hugo_Symbol", "HGVSp_Short")) %>%
-dplyr::mutate(is_hotspot = ifelse(is.na(is_hotspot), FALSE, is_hotspot)) %>%
-dplyr::mutate(Variant_Classification = case_when(
-		Variant_Classification== "Missense_Mutation" & is_hotspot ~ "Hotspot",
-		TRUE ~ Variant_Classification
-)) %>%
-readr::write_tsv(path = "../res/all_vars.txt", col_names = TRUE, append = FALSE)
-
-clinical %>%
-dplyr::select(Tumor_Sample_Barcode = patient_id_mskcc,
-	      CRT_randomization = crt_randomization,
-	      Tumor_size = t_stage,
-	      Nodal_status = n_stage,
-	      Sex = sex,
-	      Smoking = smoking_category_yes_never,
-	      HPV = hpv_type_panel) %>%
-dplyr::mutate(HPV = ifelse(is.na(HPV), "Unknown", HPV)) %>%
-readr::write_tsv(path = "../res/clinical.txt", col_names = TRUE, append = FALSE)
-
-maf = read.maf(maf = "../res/all_vars.txt",
-	       clinicalData = "../res/clinical.txt",
-	       vc_nonSyn = names(vcColors()))
-
-input_vars = manifest %>%
-	     dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
-	     dplyr::group_by(patient_id_mskcc) %>%
-	     dplyr::summarize(vars_input = max(`MRD-Landmark_Input_Variant_Count`),
-			      vars_pf = max(`MRD-Landmark_Input_Variants_Passing_Filter`)) %>%
-	     dplyr::ungroup() %>%
-	     dplyr::rename(Tumor_Sample_Barcode = patient_id_mskcc) %>%
-	     dplyr::full_join(maf@data %>%
-			      dplyr::group_by(Tumor_Sample_Barcode) %>%
-			      dplyr::summarize(is_present = TRUE) %>%
-			      dplyr::ungroup()) %>%
-	     dplyr::select(Tumor_Sample_Barcode, `# PF variants` = vars_pf) %>%
-	     as.data.frame()
-
-CRT_randomization = brewer.pal(n = length(unique(maf@clinical.data$CRT_randomization)), name = "Dark2")[c(1,2)]
-names(CRT_randomization) = unique(maf@clinical.data$CRT_randomization)
-Tumor_size = brewer.pal(n = length(unique(maf@clinical.data$Tumor_size)), name = "Set1")
-names(Tumor_size) = unique(maf@clinical.data$Tumor_size)
-Nodal_status = brewer.pal(n = length(unique(maf@clinical.data$Nodal_status)), name = "Set1")
-names(Nodal_status) = unique(maf@clinical.data$Nodal_status)
-Sex = brewer.pal(n = length(unique(maf@clinical.data$Sex)), name = "Set1")[c(1,2)]
-names(Sex) = unique(maf@clinical.data$Sex)
-Smoking = brewer.pal(n = length(unique(maf@clinical.data$Smoking)), name = "Set1")[c(1,2)]
-names(Smoking) = unique(maf@clinical.data$Smoking)
-HPV = brewer.pal(n = length(unique(maf@clinical.data$HPV)), name = "Set1")
-names(HPV) = unique(maf@clinical.data$HPV)
-color_palette = list(CRT_randomization = CRT_randomization,
-		     Tumor_size = Tumor_size,
-		     Nodal_status = Nodal_status,
-		     Sex = Sex,
-		     Smoking = Smoking,
-		     HPV = HPV)
-
-pdf(file = "../res/OncoPrint_Primary_Tumors.pdf", width = 15, height = 11)
-oncoplot(maf = subsetMaf(maf, tsb = input_vars %>% dplyr::filter(!is.na(`# PF variants`)) %>% .[["Tumor_Sample_Barcode"]]),
-	 minMut = 4,
- 	 drawRowBar = FALSE,
- 	 drawColBar = TRUE,
-	 topBarData = input_vars,
-	 logColBar = FALSE,
-	 showTumorSampleBarcodes = TRUE,
-	 removeNonMutated = FALSE,
-	 barcode_mar = 6,
-	 barcodeSrt = 90,
-	 keepGeneOrder = FALSE,
-	 GeneOrderSort = TRUE,
-	 colors = vcColors(),
- 	 showTitle = FALSE,
- 	 showPct = TRUE,
-	 legend_height = 0,
- 	 sepwd_genes = 1.0,
- 	 sepwd_samples = 1.0,
-	 clinicalFeatures = c("CRT_randomization", "Tumor_size", "Nodal_status", "Sex", "Smoking", "HPV"),
-	 annotationColor = color_palette,
-	 sortByAnnotation = FALSE,
- 	 additionalFeature = c("is_tracking", TRUE),
- 	 additionalFeatureCol = "white",
- 	 additionalFeatureCex = 1.5,
-	 fontSize = 0.95,
-	 SampleNamefontSize = 1.05,
-	 fill = TRUE)
 dev.off()
