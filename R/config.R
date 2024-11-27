@@ -46,6 +46,7 @@ suppressPackageStartupMessages(library("GSEABase"))
 suppressPackageStartupMessages(library("fgsea"))
 suppressPackageStartupMessages(library("genefilter"))
 suppressPackageStartupMessages(library("limma"))
+suppressPackageStartupMessages(library("sensemakr"))
 
 
 

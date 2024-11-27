@@ -657,6 +657,32 @@ fit_ = lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af))
 res_ = summary(fit_)
 aic_ = MASS::stepAIC(object = lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af)), direction = "backward")
 
+summary(fit_) %>%
+.[["coefficients"]] %>%
+as.data.frame() %>%
+tibble::rownames_to_column("variable") %>%
+dplyr::as_tibble() %>%
+dplyr::left_join(partial_r2(fit_) %>%
+		 as.data.frame() %>%
+		 tibble::rownames_to_column("variable") %>%
+		 dplyr::as_tibble() %>%
+		 dplyr::rename(`R^2` = "."), by = "variable") %>%
+dplyr::filter(variable != "(Intercept)") %>%
+pander::pander(caption = "All variables")
+
+summary(aic_) %>%
+.[["coefficients"]] %>%
+as.data.frame() %>%
+tibble::rownames_to_column("variable") %>%
+dplyr::as_tibble() %>%
+dplyr::left_join(partial_r2(aic_) %>%
+		 as.data.frame() %>%
+		 tibble::rownames_to_column("variable") %>%
+		 dplyr::as_tibble() %>%
+		 dplyr::rename(`R^2` = "."), by = "variable") %>%
+dplyr::filter(variable != "(Intercept)") %>%
+pander::pander(caption = "All variables")
+
 plot_ = res_ %>%
 	.[["coefficients"]] %>%
 	as.data.frame() %>%
@@ -710,6 +736,7 @@ plot_ = res_ %>%
 pdf(file = "../res/Linear_Regression_Coefficients_Maxi.pdf", width = 6, height = 4)
 print(plot_)
 dev.off()
+
 
 variables_filtered = c("All", "n_stage", "hypoxia",
 		       "smoking_status", "ssGSEA_mitosis", "t_stage",
@@ -806,6 +833,30 @@ data_ = idx_metrics_ft %>%
 	readr::type_convert() %>%
 	tidyr::drop_na() %>%
         as.data.frame()
+
+#########################################################
+# HPV copy number
+#########################################################
+plot_ = data_ %>%
+	ggplot(aes(x = hpv_copynumber, y = aligned_reads)) +
+	geom_smooth(stat = "smooth", method = "lm", formula = y ~ x, se = FALSE, color = "goldenrod3", size = 1.5) +
+	geom_point(stat = "identity", shape = 21, color = "#1b9e77", fill = "white", alpha = .85, size = 2.5) +
+	scale_x_log10() +
+	scale_y_continuous(limits = c(2, 7),
+			   breaks = c(2, 3, 4, 5, 6, 7),
+			   labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))) +
+	xlab("Primary Tumor HPV Copy Number") +
+	ylab("cfDNA Aligned HPV Read Pairs") +
+	stat_cor(method = "spearman") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/Total_Reads_HPV_Copy_Number.pdf", width = 3.35, height = 3)
+print(plot_)
+dev.off()
 
 #########################################################
 # Tumor volume

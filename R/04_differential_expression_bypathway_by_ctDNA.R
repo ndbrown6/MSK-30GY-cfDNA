@@ -264,3 +264,30 @@ reshape2::dcast(variable ~ signature_name, value.var = "value") %>%
 dplyr::as_tibble() %>%
 dplyr::rename(patient_id_mskcc = variable) %>%
 readr::write_tsv(path = "../res/GSEA.txt", col_names = TRUE, append = FALSE)
+
+
+plot_ = dplyr::tibble(patient_id_mskcc = sampleNames(BroadGeneSet_SSGSEA),
+		      ssgsea = exprs(BroadGeneSet_SSGSEA)["REACTOME_RIPK1_MEDIATED_REGULATED_NECROSIS",],
+		      is_ctdna = design[,"status"]) %>%
+	ggplot(aes(x = as.factor(is_ctdna), y = ssgsea)) +
+	geom_violin(stat = "ydensity", draw_quantiles = c(.25, .5, .75), trim = FALSE, scale = "area") +
+	scale_x_discrete(breaks = c(0, 1),
+			 labels = c("-ve", "+ve")) +
+	scale_y_log10(limits = c(30, 4000),
+		      labels = scientific_10) +
+	xlab("ctDNA") +
+	ylab("GSEA Score") +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("0", "1")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "less"),
+		    y_position = log10(3500)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/ctDNA_by_GSEA_RIPK1.pdf", width = 3.35, height = 3.25)
+print(plot_)
+dev.off()
