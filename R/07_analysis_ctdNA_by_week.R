@@ -598,7 +598,7 @@ print(plot_)
 dev.off()
 
 #==================================================
-# Relative Mean AF <= wk10-
+# Relative Mean AF <= wk10-, wk20-, wk30-
 #==================================================
 smry_ = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 	readr::type_convert() %>%
@@ -813,7 +813,7 @@ dev.off()
 
 plot_ = smry_ %>%
 	ggplot(aes(x = `wk10+`)) +
-	geom_bar(stat = "count", fill = "#e41a1c", color = "black") +
+	geom_bar(stat = "count", fill = "#6baed6", color = "#2171b5") +
 	scale_x_continuous(labels = 5:10,
 			   breaks = 5:10) +
 	xlab("Weeks") +
@@ -824,13 +824,13 @@ plot_ = smry_ %>%
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12))
 
-pdf(file = "../res/ctDNA_Clearance_Relative_Mean_AF_wk10-_Sample_Distribution.pdf", width = 2.5*1.5, height = 3)
+pdf(file = "../res/ctDNA_Clearance_Relative_Mean_AF_wk10-_Sample_Distribution.pdf", width = 2.5, height = 3)
 print(plot_)
 dev.off()
 
 plot_ = smry_ %>%
 	ggplot(aes(x = `wk20+`)) +
-	geom_bar(stat = "count", fill = "#e41a1c", color = "black") +
+	geom_bar(stat = "count", fill = "#6baed6", color = "#2171b5") +
 	scale_x_continuous(labels = seq(10, 20, by = 2),
 			   breaks = seq(10, 20, by = 2)) +
 	xlab("Weeks") +
@@ -845,6 +845,100 @@ pdf(file = "../res/ctDNA_Clearance_Relative_Mean_AF_wk20-_Sample_Distribution.pd
 print(plot_)
 dev.off()
 
+plot_ = smry_ %>%
+	dplyr::select(wk1, `wk10-`) %>%
+	tidyr::drop_na() %>%
+	dplyr::mutate(wk1 = case_when(
+		wk1 <= 0 ~ 0,
+		wk1 > 0 ~ 1,
+		TRUE ~ NaN
+	)) %>%
+	pROC::roc(predictor = `wk10-`, response = wk1, ret = "all_coords") %>%
+	dplyr::as_tibble() %>%
+	dplyr::select(`1-specificity`, `sensitivity`) %>%
+	dplyr::mutate(predictor = "wk10-", response = "wk1") %>%
+	dplyr::bind_rows(smry_ %>%
+			 dplyr::select(wk2, `wk10-`) %>%
+			 tidyr::drop_na() %>%
+			 dplyr::mutate(wk2 = case_when(
+				 wk2 <= 0 ~ 0,
+				 wk2 > 0 ~ 1,
+				 TRUE ~ NaN
+			 )) %>%
+			 pROC::roc(predictor = `wk10-`, response = wk2, ret = "all_coords") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::select(`1-specificity`, `sensitivity`) %>%
+			 dplyr::mutate(predictor = "wk10-", response = "wk2")) %>%
+	dplyr::bind_rows(smry_ %>%
+			 dplyr::select(wk3, `wk10-`) %>%
+			 tidyr::drop_na() %>%
+			 dplyr::mutate(wk3 = case_when(
+				 wk3 <= 0 ~ 0,
+				 wk3 > 0 ~ 1,
+				 TRUE ~ NaN
+			 )) %>%
+			 pROC::roc(predictor = `wk10-`, response = wk3, ret = "all_coords") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::select(`1-specificity`, `sensitivity`) %>%
+			 dplyr::mutate(predictor = "wk10-", response = "wk3")) %>%
+	dplyr::bind_rows(smry_ %>%
+			 dplyr::select(wk1, `wk20-`) %>%
+			 tidyr::drop_na() %>%
+			 dplyr::mutate(wk1 = case_when(
+				 wk1 <= 0 ~ 0,
+				 wk1 > 0 ~ 1,
+				 TRUE ~ NaN
+			 )) %>%
+			 pROC::roc(predictor = `wk20-`, response = wk1, ret = "all_coords") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::select(`1-specificity`, `sensitivity`) %>%
+			 dplyr::mutate(predictor = "wk20-", response = "wk3")) %>%
+	dplyr::bind_rows(smry_ %>%
+			 dplyr::select(wk2, `wk20-`) %>%
+			 tidyr::drop_na() %>%
+			 dplyr::mutate(wk2 = case_when(
+				 wk2 <= 0 ~ 0,
+				 wk2 > 0 ~ 1,
+				 TRUE ~ NaN
+			 )) %>%
+			 pROC::roc(predictor = `wk20-`, response = wk2, ret = "all_coords") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::select(`1-specificity`, `sensitivity`) %>%
+			 dplyr::mutate(predictor = "wk20-", response = "wk2")) %>%
+	dplyr::bind_rows(smry_ %>%
+			 dplyr::select(wk3, `wk20-`) %>%
+			 tidyr::drop_na() %>%
+			 dplyr::mutate(wk3 = case_when(
+				 wk3 <= 0 ~ 0,
+				 wk3 > 0 ~ 1,
+				 TRUE ~ NaN
+			 )) %>%
+			 pROC::roc(predictor = `wk20-`, response = wk3, ret = "all_coords") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::select(`1-specificity`, `sensitivity`) %>%
+			 dplyr::mutate(predictor = "wk20-", response = "wk3")) %>%
+	ggplot(aes(x = 1-`1-specificity`, y = `sensitivity`, color = response)) +
+	geom_path(stat = "identity") +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_x_reverse() +
+	xlab("Specificity") +
+	ylab("Sensitivity") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      strip.background = element_blank()) +
+	guides(color = guide_legend(title = "Week")) +
+	facet_wrap(~predictor, scales = "free")
+
+pdf(file = "../res/ROC_Relative_Change_Mean_AF.pdf", width = 6*1.15, height = 2.5*1.15)
+print(plot_)
+dev.off()
+
+#==================================================
+# Relative MRI volume wk1, wk2, wk3, wk5
+#==================================================
 plot_ = smry_ %>%
 	dplyr::bind_cols(tsne_$Y %>%
 			 dplyr::as_tibble() %>%
