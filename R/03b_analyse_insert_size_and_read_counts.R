@@ -192,7 +192,7 @@ plot_ = insert_size_smry_ft %>%
 	      axis.title.y = element_text(margin = margin(r = 20)),
 	      strip.background = element_rect(colour="white", fill="white"))
 
-pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_apparent_False_Positive.pdf", width = 3.25, height = 3.25/1.25)
+pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_apparent_False_Positive.pdf", width = 3.25, height = 3.25/1.5)
 print(plot_)
 dev.off()
 
@@ -230,7 +230,7 @@ plot_ = insert_size_smry_ft %>%
 	      axis.title.y = element_text(margin = margin(r = 20)),
 	      strip.background = element_rect(colour="white", fill="white"))
 
-pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_apparent_False_Negative.pdf", width = 3.25, height = 3.25/1.25)
+pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_apparent_False_Negative.pdf", width = 3.25, height = 3.25/1.5)
 print(plot_)
 dev.off()
 
@@ -272,7 +272,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)))
 
-pdf(file = "../res/MRD_HPV_HPV_Copy_number_Misclassifications.pdf", width = 2.75, height = 3.25)
+pdf(file = "../res/MRD_HPV_HPV_Copy_number_Misclassifications.pdf", width = 2.75, height = 2.9)
 print(plot_)
 dev.off()
 
@@ -314,7 +314,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)))
 
-pdf(file = "../res/MRD_HPV_HPV_Copy_number_Correct_Classifications.pdf", width = 2.75, height = 3.25)
+pdf(file = "../res/MRD_HPV_HPV_Copy_number_Correct_Classifications.pdf", width = 2.75, height = 2.9)
 print(plot_)
 dev.off()
 

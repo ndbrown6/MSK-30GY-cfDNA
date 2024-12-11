@@ -48,6 +48,7 @@ suppressPackageStartupMessages(library("genefilter"))
 suppressPackageStartupMessages(library("limma"))
 suppressPackageStartupMessages(library("sensemakr"))
 suppressPackageStartupMessages(library("Rtsne"))
+suppressPackageStartupMessages(library("ggdendro"))
 
 
 registerDoMC(8)

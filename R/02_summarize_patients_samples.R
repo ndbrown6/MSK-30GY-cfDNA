@@ -192,16 +192,10 @@ smry__mrd = manifest %>%
 	    )) %>%
 	    dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
 	    dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+	    dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
 	    dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
-		    timepoint_days_since_start_of_RT >= 0 & timepoint_days_since_start_of_RT < 7 ~ "wk0",
-		    timepoint_days_since_start_of_RT >= 7 & timepoint_days_since_start_of_RT < 14 ~ "wk1",
-		    timepoint_days_since_start_of_RT >= 14 & timepoint_days_since_start_of_RT < 21 ~ "wk2",
-		    timepoint_days_since_start_of_RT >= 21 & timepoint_days_since_start_of_RT < 28 ~ "wk3",
-		    timepoint_days_since_start_of_RT >= 28 & timepoint_days_since_start_of_RT < 35 ~ "wk4",
-		    timepoint_days_since_start_of_RT >= 35 & timepoint_days_since_start_of_RT < 42 ~ "wk5",
-		    timepoint_days_since_start_of_RT >= 42 & timepoint_days_since_start_of_RT < 49 ~ "wk6",
-		    timepoint_days_since_start_of_RT >= 49 ~ "wk7+",
-		    TRUE ~ "Pre-treatment"
+		    		timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+		    		TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
 	    )) %>%
 	    dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
 	    dplyr::summarize(Is_ctDNA = any(`MRD-Landmark_Result` == "PRESENT")) %>%
@@ -214,24 +208,18 @@ smry__mrd = manifest %>%
 if (file.exists("../res/Posterior_Probability_ALL.txt")) {
 	smry__hpv = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
 		    readr::type_convert() %>%
-		    dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
-			    timepoint_days_since_start_of_RT >= 0 & timepoint_days_since_start_of_RT < 7 ~ "wk0",
-			    timepoint_days_since_start_of_RT >= 7 & timepoint_days_since_start_of_RT < 14 ~ "wk1",
-			    timepoint_days_since_start_of_RT >= 14 & timepoint_days_since_start_of_RT < 21 ~ "wk2",
-			    timepoint_days_since_start_of_RT >= 21 & timepoint_days_since_start_of_RT < 28 ~ "wk3",
-			    timepoint_days_since_start_of_RT >= 28 & timepoint_days_since_start_of_RT < 35 ~ "wk4",
-			    timepoint_days_since_start_of_RT >= 35 & timepoint_days_since_start_of_RT < 42 ~ "wk5",
-			    timepoint_days_since_start_of_RT >= 42 & timepoint_days_since_start_of_RT < 49 ~ "wk6",
-			    timepoint_days_since_start_of_RT >= 49 ~ "wk7+",
-			    TRUE ~ "Pre-treatment"
+		    dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+	    	    dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+			    	timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+			    	TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
 		    )) %>%
-	dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
-	dplyr::summarize(Is_ctDNA = any(Is_ctDNA == "+ve")) %>%
-	dplyr::ungroup() %>%
-	dplyr::group_by(timepoint_weeks_since_start_of_RT) %>%
-	dplyr::summarize(N = n(),
-		`Is_ctDNA_%` = sum(Is_ctDNA)) %>%
-	dplyr::mutate(`Is_ctDNA_%` = 100*`Is_ctDNA_%`/N)
+		    dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
+		    dplyr::summarize(Is_ctDNA = any(Is_ctDNA == "+ve")) %>%
+		    dplyr::ungroup() %>%
+		    dplyr::group_by(timepoint_weeks_since_start_of_RT) %>%
+		    dplyr::summarize(N = n(),
+				`Is_ctDNA_%` = sum(Is_ctDNA)) %>%
+		    dplyr::mutate(`Is_ctDNA_%` = 100*`Is_ctDNA_%`/N)
 
 	smry__mrd_hpv = manifest %>%
 			dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -250,16 +238,10 @@ if (file.exists("../res/Posterior_Probability_ALL.txt")) {
 			dplyr::left_join(readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
 					 readr::type_convert() %>%
 					 dplyr::select(sample_uuid = sample_name, Is_ctDNA), by = "sample_uuid") %>%
-			dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
-				timepoint_days_since_start_of_RT >= 0 & timepoint_days_since_start_of_RT < 7 ~ "wk0",
-				timepoint_days_since_start_of_RT >= 7 & timepoint_days_since_start_of_RT < 14 ~ "wk1",
-				timepoint_days_since_start_of_RT >= 14 & timepoint_days_since_start_of_RT < 21 ~ "wk2",
-				timepoint_days_since_start_of_RT >= 21 & timepoint_days_since_start_of_RT < 28 ~ "wk3",
-				timepoint_days_since_start_of_RT >= 28 & timepoint_days_since_start_of_RT < 35 ~ "wk4",
-				timepoint_days_since_start_of_RT >= 35 & timepoint_days_since_start_of_RT < 42 ~ "wk5",
-				timepoint_days_since_start_of_RT >= 42 & timepoint_days_since_start_of_RT < 49 ~ "wk6",
-				timepoint_days_since_start_of_RT >= 49 ~ "wk7+",
-				TRUE ~ "Pre-treatment"
+			dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+	    	        dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+					timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+					TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
 			)) %>%
 			dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
 			dplyr::summarize(Is_ctDNA_MRD = any(`MRD-Landmark_Result` == "PRESENT"),
