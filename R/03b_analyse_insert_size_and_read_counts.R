@@ -394,7 +394,6 @@ idx_metrics_ft = idx_metrics_ft %>%
 		dplyr::filter(!is.na(aligned_reads)) %>%
 		dplyr::filter(!is.na(mean_af))
 
-
 fit_ = stats::lm(formula = aligned_reads ~ hpv_panel_copy_number,
 		 data = idx_metrics_ft %>%
 		        dplyr::mutate(aligned_reads = log10(aligned_reads)) %>%
@@ -530,7 +529,8 @@ data_ = idx_metrics_ft %>%
 			 readr::type_convert(),
 			 by = "patient_id_mskcc") %>%
 	dplyr::mutate(mean_af = (mean_af*100)+1E-3) %>%
-        dplyr::select(aligned_reads,
+        dplyr::select(patient_id_mskcc,
+		      aligned_reads,
 		      mean_af,
 		      cfdna_concentration = concentration_ng_uL,
 		      hpv_copynumber = hpv_panel_copy_number,
@@ -559,6 +559,8 @@ data_ = idx_metrics_ft %>%
 		      ssGSEA_necrosis = scale(ssGSEA_necrosis),
 		      ssGSEA_mitosis = scale(ssGSEA_mitosis)) %>%
         tidyr::drop_na() %>%
+	dplyr::filter(!duplicated(patient_id_mskcc)) %>%
+	dplyr::select(-patient_id_mskcc) %>%
         as.data.frame()
 	
 smry_reads = summary(lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af)))
@@ -623,7 +625,8 @@ data_ = idx_metrics_ft %>%
 			 by = "patient_id_mskcc") %>%
 	dplyr::mutate(mean_af = mean_af*100,
 		      aligned_reads = log10(aligned_reads)) %>%
-        dplyr::select(aligned_reads,
+        dplyr::select(patient_id_mskcc,
+		      aligned_reads,
 		      mean_af,
 		      cfdna_concentration = concentration_ng_uL,
 		      hpv_copynumber = hpv_panel_copy_number,
@@ -651,6 +654,8 @@ data_ = idx_metrics_ft %>%
 		      ssGSEA_necrosis = scale(ssGSEA_necrosis),
 		      ssGSEA_mitosis = scale(ssGSEA_mitosis)) %>%
         tidyr::drop_na() %>%
+	dplyr::filter(!duplicated(patient_id_mskcc)) %>%
+	dplyr::select(-patient_id_mskcc) %>%
         as.data.frame()
 
 fit_ = lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af))

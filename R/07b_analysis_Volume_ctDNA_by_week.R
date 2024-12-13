@@ -162,10 +162,10 @@ hcl_ = smry_ %>%
 smry_ = smry_ %>%
 	dplyr::bind_cols(tsne_$Y %>%
 			 dplyr::as_tibble() %>%
-			 dplyr::select(tSNE1 = V1, tSNE2 = V2)) %>%
+			 dplyr::select(tSNE1_AF = V1, tSNE2_AF = V2)) %>%
 	dplyr::bind_cols(pca_$x %>%
 			 dplyr::as_tibble() %>%
-			 dplyr::select(PC1, PC2)) %>%
+			 dplyr::select(PC1_AF = PC1, PC2_AF = PC2)) %>%
 	dplyr::mutate(cluster_id_af = as.character(hcl_)) %>%
 	dplyr::mutate(cluster_id_af = case_when(
 		cluster_id_af == "4" ~ "Fast",
@@ -194,61 +194,202 @@ hcl_ = clinical %>%
        hclust(method = "ward.D") %>%
        cutree(k = 4)
 
-plot_ = clinical %>%
-	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
-	dplyr::bind_cols(tsne_$Y %>%
-			 dplyr::as_tibble() %>%
-			 dplyr::select(tSNE1 = V1, tSNE2 = V2)) %>%
-	dplyr::bind_cols(pca_$x %>%
-			 dplyr::as_tibble() %>%
-			 dplyr::select(PC1, PC2)) %>%
-	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
-	ggplot(aes(x = tSNE1, y = tSNE2, color = cluster_id_vol)) +
-	geom_point(stat = "identity")
+plot_ = smry_ %>%
+	dplyr::full_join(clinical %>%
+			 tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+			 dplyr::bind_cols(tsne_$Y %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(tSNE1_MRI = V1, tSNE2_MRI = V2)) %>%
+			 dplyr::bind_cols(pca_$x %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(PC1_MRI = PC1, PC2_MRI = PC2)) %>%
+			 dplyr::mutate(cluster_id_vol = as.character(hcl_)),
+			 by = "patient_id_mskcc") %>%
+	tidyr::drop_na(tSNE1_AF, tSNE2_AF) %>%
+	ggplot(aes(x = tSNE1_AF, y = tSNE2_AF, color = cluster_id_af, shape = cluster_id_af)) +
+	geom_point(stat = "identity", size = 3, fill = "white") +
+	scale_x_continuous() +
+	scale_y_continuous() +
+	xlab("Component 1") +
+	ylab("Component 2") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 7)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(color = guide_legend(title = "ctDNA clearance"),
+	       shape = guide_legend(title = "ctDNA clearance"))
 
-plot_ = clinical %>%
-	dplyr::select(patient_id_mskcc, MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3, MRI_rawdata_wk4) %>%
-	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
-	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
-	reshape2::melt(id.vars = c("patient_id_mskcc", "cluster_id_vol")) %>%
-	ggplot(aes(x = variable, y = value, color = cluster_id_vol, shape = cluster_id_vol)) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, color = "black") +
-	geom_jitter(stat = "identity", width = .1, height = 0, fill = "white", size = 3, alpha = .95) +
-	scale_shape_manual(values = c("4" = 21, "1" = 22, "3" = 23, "2" = 24)) +
-	scale_color_manual(values = c("4" = "#1b9e77", "1" = "#d95f02", "3" = "#7570b3", "2" = "#e7298a")) +
-	scale_x_discrete(breaks = c("MRI_rawdata_wk0", "MRI_rawdata_wk1", "MRI_rawdata_wk2", "MRI_rawdata_wk3", "MRI_rawdata_wk4"),
-			 labels = c(0, 1, 2, 3, 4)) +
-	scale_y_continuous(limits = c(0, 70000),
-			   labels = scientific_10) +
-	xlab("") +
+plot_ = smry_ %>%
+	dplyr::full_join(clinical %>%
+			 tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+			 dplyr::bind_cols(tsne_$Y %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(tSNE1_MRI = V1, tSNE2_MRI = V2)) %>%
+			 dplyr::bind_cols(pca_$x %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(PC1_MRI = PC1, PC2_MRI = PC2)) %>%
+			 dplyr::mutate(cluster_id_vol = as.character(hcl_)),
+			 by = "patient_id_mskcc") %>%
+	tidyr::drop_na(tSNE1_MRI, tSNE2_MRI) %>%
+	ggplot(aes(x = tSNE1_MRI, y = tSNE2_MRI, color = cluster_id_vol, shape = cluster_id_vol)) +
+	geom_point(stat = "identity", size = 3, fill = "white") +
+	scale_x_continuous() +
+	scale_y_continuous() +
+	xlab("Component 1") +
+	ylab("Component 2") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 7)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(color = guide_legend(title = "Volume clearance"),
+	       shape = guide_legend(title = "Volume clearance"))
+
+plot_ = smry_ %>%
+	dplyr::full_join(clinical %>%
+			 tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+			 dplyr::bind_cols(tsne_$Y %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(tSNE1_MRI = V1, tSNE2_MRI = V2)) %>%
+			 dplyr::bind_cols(pca_$x %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(PC1_MRI = PC1, PC2_MRI = PC2)) %>%
+			 dplyr::mutate(cluster_id_vol = as.character(hcl_)),
+			 by = "patient_id_mskcc") %>%
+	tidyr::drop_na(tSNE1_AF, tSNE2_MRI) %>%
+	ggplot(aes(x = tSNE1_AF, y = tSNE2_MRI, color = cluster_id_af, shape = cluster_id_vol)) +
+	geom_point(stat = "identity", size = 3, fill = "white") +
+	scale_x_continuous() +
+	scale_y_continuous() +
+	xlab("Relative Mean AF") +
 	ylab("MRI Volume") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 9.5),
-	      axis.text.y = element_text(size = 12),
-	      strip.background = element_blank()) +
-	guides(color = FALSE, shape = FALSE) +
-	facet_wrap(~cluster_id_vol, nrow = 1)
+	      axis.title.y = element_text(margin = margin(r = 7)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(color = guide_legend(title = "ctDNA clearance"),
+	       shape = guide_legend(title = "Volume clearance"))
 
-tt_ = smry_ %>%
-      dplyr::left_join(clinical %>%
-		       tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
-		       dplyr::mutate(cluster_id_vol = as.character(hcl_)),
-		       by = "patient_id_mskcc") %>%
-      dplyr::group_by(cluster_id_vol, cluster_id_af) %>%
-      dplyr::summarize(n = n()) %>%
-      dplyr::ungroup() %>%
-      tidyr::drop_na() %>%
-      reshape2::dcast(cluster_id_vol ~ cluster_id_af, fill = 0)
+#plot_ = clinical %>%
+#	dplyr::select(patient_id_mskcc, MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3, MRI_rawdata_wk4) %>%
+#	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+#	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
+#	reshape2::melt(id.vars = c("patient_id_mskcc", "cluster_id_vol")) %>%
+#	ggplot(aes(x = variable, y = value, color = cluster_id_vol, shape = cluster_id_vol)) +
+#	geom_boxplot(stat = "boxplot", outlier.shape = NA, color = "black") +
+#	geom_jitter(stat = "identity", width = .1, height = 0, fill = "white", size = 3, alpha = .95) +
+#	scale_shape_manual(values = c("4" = 21, "1" = 22, "3" = 23, "2" = 24)) +
+#	scale_color_manual(values = c("4" = "#1b9e77", "1" = "#d95f02", "3" = "#7570b3", "2" = "#e7298a")) +
+#	scale_x_discrete(breaks = c("MRI_rawdata_wk0", "MRI_rawdata_wk1", "MRI_rawdata_wk2", "MRI_rawdata_wk3", "MRI_rawdata_wk4"),
+#			 labels = c(0, 1, 2, 3, 4)) +
+#	scale_y_continuous(limits = c(0, 70000),
+#			   labels = scientific_10) +
+#	xlab("") +
+#	ylab("MRI Volume") +
+#	theme_classic() +
+#	theme(axis.title.x = element_text(margin = margin(t = 20)),
+#	      axis.title.y = element_text(margin = margin(r = 20)),
+#	      axis.text.x = element_text(size = 9.5),
+#	      axis.text.y = element_text(size = 12),
+#	      strip.background = element_blank()) +
+#	guides(color = FALSE, shape = FALSE) +
+#	facet_wrap(~cluster_id_vol, nrow = 1)
+#
+#tt_ = smry_ %>%
+#      dplyr::left_join(clinical %>%
+#		       tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+#		       dplyr::mutate(cluster_id_vol = as.character(hcl_)),
+#		       by = "patient_id_mskcc") %>%
+#      dplyr::group_by(cluster_id_vol, cluster_id_af) %>%
+#      dplyr::summarize(n = n()) %>%
+#      dplyr::ungroup() %>%
+#      tidyr::drop_na() %>%
+#      reshape2::dcast(cluster_id_vol ~ cluster_id_af, fill = 0)
 
-tt_ = clinical %>%
-      tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
-      dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
-      dplyr::group_by(cluster_id_vol, simplified_hypoxia_group) %>%
-      dplyr::summarize(n = n()) %>%
-      dplyr::ungroup() %>%
-      tidyr::drop_na() %>%
-      reshape2::dcast(cluster_id_vol ~ simplified_hypoxia_group, fill = 0)
+ctab_ = clinical %>%
+	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
+	dplyr::group_by(cluster_id_vol, simplified_hypoxia_group) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_vol ~ simplified_hypoxia_group, fill = 0)
 
+ctab_ = clinical %>%
+	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
+	dplyr::group_by(cluster_id_vol, hypoxia_resolution) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_vol ~ hypoxia_resolution, fill = 0)
+
+ctab_ = clinical %>%
+	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
+	dplyr::group_by(cluster_id_vol, neck_dissection_yes_no) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_vol ~ neck_dissection_yes_no, fill = 0)
+
+ctab_ = clinical %>%
+	tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+	dplyr::mutate(cluster_id_vol = as.character(hcl_)) %>%
+	dplyr::group_by(cluster_id_vol, composite_end_point) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_vol ~ composite_end_point, fill = 0)
+
+ctab_ = smry_ %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	dplyr::group_by(cluster_id_af, simplified_hypoxia_group) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_af ~ simplified_hypoxia_group, fill = 0)
+
+ctab_ = smry_ %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	dplyr::group_by(cluster_id_af, hypoxia_resolution) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_af ~ hypoxia_resolution, fill = 0)
+
+ctab_ = smry_ %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	dplyr::group_by(cluster_id_af, neck_dissection_yes_no) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_af ~ neck_dissection_yes_no, fill = 0)
+
+ctab_ = smry_ %>%
+	dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+	dplyr::group_by(cluster_id_af, composite_end_point) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_af ~ composite_end_point, fill = 0)
+
+ctab_ = smry_ %>%
+	dplyr::full_join(clinical %>%
+			 tidyr::drop_na(MRI_rawdata_wk0, MRI_rawdata_wk1, MRI_rawdata_wk2, MRI_rawdata_wk3) %>%
+			 dplyr::bind_cols(tsne_$Y %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(tSNE1_MRI = V1, tSNE2_MRI = V2)) %>%
+			 dplyr::bind_cols(pca_$x %>%
+					  dplyr::as_tibble() %>%
+					  dplyr::select(PC1_MRI = PC1, PC2_MRI = PC2)) %>%
+			 dplyr::mutate(cluster_id_vol = as.character(hcl_)),
+			 by = "patient_id_mskcc") %>%
+	dplyr::group_by(cluster_id_af, cluster_id_vol, simplified_hypoxia_group) %>%
+	dplyr::summarize(n = n()) %>%
+	dplyr::ungroup() %>%
+	tidyr::drop_na() %>%
+	reshape2::dcast(cluster_id_af + cluster_id_vol ~ simplified_hypoxia_group, fill = 0)
 
