@@ -71,7 +71,7 @@ plot_ = aln_metrics %>%
 	dplyr::filter(concentration_ng_uL>.01) %>%
 	dplyr::filter(TOTAL_READS < (2*1E4)) %>%
 	ggplot(aes(x = concentration_ng_uL, y = TOTAL_READS/2)) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .55, size = 2) +
+	geom_point(stat = "identity", shape = 21, fill = "white", color = "#aea79f", alpha = .55, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x, se = .90, color = "goldenrod3", alpha = .55, size = 1.5) +
 	xlab(expression("cfDNA concentration  (ng"~.~mu~L^-1~")")) +
 	ylab("Number of Read Pairs Aligned") +
@@ -97,11 +97,11 @@ plot_ = mrd_smry %>%
 	dplyr::filter(!is.na(concentration_ng_uL)) %>%
 	dplyr::filter(concentration_ng_uL>.01) %>%
 	ggplot(aes(x = concentration_ng_uL, y = Total_Sample_Complexity)) +
-	geom_point(stat = "identity", shape = 21, fill = NA, alpha = .55, size = 2) +
+	geom_point(stat = "identity", shape = 21, fill = "white", color = "#aea79f", alpha = .55, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x, se = .90, color = "goldenrod3", alpha = .55, size = 1.5) +
 	xlab(expression("cfDNA concentration  (ng"~.~mu~L^-1~")")) +
 	ylab("Number of Read Pairs Aligned") +
-	labs(title = "PCM Assay\n") +
+	labs(title = "MRD Assay\n") +
 	scale_x_log10(limits = c(NA, 1),
 		      labels = scientific_10) +
 	scale_y_log10(labels = scientific_10) +
@@ -113,6 +113,6 @@ plot_ = mrd_smry %>%
 	      axis.text.y = element_text(size = 12),
 	      plot.title = element_text(hjust = 0.5))
 
-pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL_PCM_Assay.pdf", width = 3.25, height = 3.5)
+pdf("../res/Number_Read_Pairs_by_cfDNA_Concentration_ng_muL_MRD_Assay.pdf", width = 3.25, height = 3.5)
 print(plot_)
 dev.off()

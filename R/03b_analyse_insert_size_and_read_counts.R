@@ -536,27 +536,23 @@ data_ = idx_metrics_ft %>%
 		      hpv_copynumber = hpv_panel_copy_number,
 		      tumor_purity = purity_wes,
 		      tumor_volume = plan_volume,
-		      tumor_size = primary_tumor_size_cm,
-		      age = age,
 		      t_stage = t_stage,
 		      n_stage = n_stage,
 		      smoking_status = smoking_category_yes_never,
 		      hypoxia = simplified_hypoxia_group,
-		      ssGSEA_apoptosis_pos = GOBP_REGULATION_OF_MITOCHONDRIAL_MEMBRANE_PERMEABILITY_INVOLVED_IN_APOPTOTIC_PROCESS,
-		      ssGSEA_apoptosis_neg = GOBP_INFLAMMATORY_CELL_APOPTOTIC_PROCESS,
-		      ssGSEA_necrosis = REACTOME_RIPK1_MEDIATED_REGULATED_NECROSIS,
-		      ssGSEA_mitosis = GOBP_MITOTIC_G1_S_TRANSITION_CHECKPOINT_SIGNALING) %>%
+		      ssGSEA_apoptosis = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+		      ssGSEA_necrosis_pos = REACTOME_REGULATED_NECROSIS,
+		      ssGSEA_necrosis_neg = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+		      ssGSEA_mitosis = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS) %>%
 	readr::type_convert() %>%
 	dplyr::mutate(mean_af = log10(mean_af),
 		      aligned_reads = log10(aligned_reads),
 		      cfdna_concentration = scale(cfdna_concentration),
 		      hpv_copynumber = scale(hpv_copynumber),
 		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssGSEA_apoptosis_pos = scale(ssGSEA_apoptosis_pos),
-		      ssGSEA_apoptosis_neg = scale(ssGSEA_apoptosis_neg),
-		      ssGSEA_necrosis = scale(ssGSEA_necrosis),
+		      ssGSEA_apoptosis = scale(ssGSEA_apoptosis),
+		      ssGSEA_necrosis_pos = scale(ssGSEA_necrosis_pos),
+		      ssGSEA_necrosis_neg = scale(ssGSEA_necrosis_neg),
 		      ssGSEA_mitosis = scale(ssGSEA_mitosis)) %>%
         tidyr::drop_na() %>%
 	dplyr::filter(!duplicated(patient_id_mskcc)) %>%
@@ -581,8 +577,6 @@ plot_ = smry_reads$coefficients %>%
 		variable == "hpv_copynumber" ~ "Genomics",
 		variable == "tumor_purity" ~ "Genomics",
 		variable == "tumor_volume" ~ "Imaging",
-		variable == "tumor_size" ~ "Clinical",
-		variable == "age" ~ "Clinical",
 		variable == "t_stageT2" ~ "Clinical",
 		variable == "t_stageT2" ~ "Clinical",
 		variable == "n_stageN2a" ~ "Clinical",
@@ -591,9 +585,9 @@ plot_ = smry_reads$coefficients %>%
 		variable == "smoking_statusyes" ~ "Clinical",
 		variable == "hypoxianever_hypoxic" ~ "Imaging",
 		variable == "hypoxiapersistent" ~ "Clinical",
-		variable == "ssGSEA_apoptosis_pos" ~ "Transcriptomics",
-		variable == "ssGSEA_apoptosis_neg" ~ "Transcriptomics",
-		variable == "ssGSEA_necrosis" ~ "Transcriptomics",
+		variable == "ssGSEA_apoptosis" ~ "Transcriptomics",
+		variable == "ssGSEA_necrosis_pos" ~ "Transcriptomics",
+		variable == "ssGSEA_necrosis_neg" ~ "Transcriptomics",
 		variable == "ssGSEA_mitosis" ~ "Transcriptomics"
 	)) %>%
 	dplyr::mutate(is_significant = p_value_reads<.1 | p_value_af<.1) %>%
@@ -632,26 +626,22 @@ data_ = idx_metrics_ft %>%
 		      hpv_copynumber = hpv_panel_copy_number,
 		      tumor_purity = purity_wes,
 		      tumor_volume = plan_volume,
-		      tumor_size = primary_tumor_size_cm,
-		      age = age,
 		      t_stage = t_stage,
 		      n_stage = n_stage,
 		      smoking_status = smoking_category_yes_never,
 		      hypoxia = simplified_hypoxia_group,
-		      ssGSEA_apoptosis_pos = GOBP_REGULATION_OF_MITOCHONDRIAL_MEMBRANE_PERMEABILITY_INVOLVED_IN_APOPTOTIC_PROCESS,
-		      ssGSEA_apoptosis_neg = GOBP_INFLAMMATORY_CELL_APOPTOTIC_PROCESS,
-		      ssGSEA_necrosis = REACTOME_RIPK1_MEDIATED_REGULATED_NECROSIS,
-		      ssGSEA_mitosis = GOBP_MITOTIC_G1_S_TRANSITION_CHECKPOINT_SIGNALING) %>%
+		      ssGSEA_apoptosis = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+		      ssGSEA_necrosis_pos = REACTOME_REGULATED_NECROSIS,
+		      ssGSEA_necrosis_neg = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+		      ssGSEA_mitosis = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS) %>%
 	readr::type_convert() %>%
 	dplyr::mutate(mean_af = scale(mean_af),
 		      cfdna_concentration = scale(cfdna_concentration),
 		      hpv_copynumber = scale(hpv_copynumber),
 		      tumor_volume = scale(tumor_volume),
-		      tumor_size = scale(tumor_size),
-		      age = scale(age),
-		      ssGSEA_apoptosis_pos = scale(ssGSEA_apoptosis_pos),
-		      ssGSEA_apoptosis_neg = scale(ssGSEA_apoptosis_neg),
-		      ssGSEA_necrosis = scale(ssGSEA_necrosis),
+		      ssGSEA_apoptosis = scale(ssGSEA_apoptosis),
+		      ssGSEA_necrosis_pos = scale(ssGSEA_necrosis_pos),
+		      ssGSEA_necrosis_neg = scale(ssGSEA_necrosis_neg),
 		      ssGSEA_mitosis = scale(ssGSEA_mitosis)) %>%
         tidyr::drop_na() %>%
 	dplyr::filter(!duplicated(patient_id_mskcc)) %>%
@@ -673,7 +663,7 @@ dplyr::left_join(partial_r2(fit_) %>%
 		 dplyr::as_tibble() %>%
 		 dplyr::rename(`R^2` = "."), by = "variable") %>%
 dplyr::filter(variable != "(Intercept)") %>%
-pander::pander(caption = "All variables")
+pander::pander(caption = "Partial R^2 all variables")
 
 summary(aic_) %>%
 .[["coefficients"]] %>%
@@ -686,7 +676,7 @@ dplyr::left_join(partial_r2(aic_) %>%
 		 dplyr::as_tibble() %>%
 		 dplyr::rename(`R^2` = "."), by = "variable") %>%
 dplyr::filter(variable != "(Intercept)") %>%
-pander::pander(caption = "All variables")
+pander::pander(caption = "Partial R^2 selected variables")
 
 plot_ = res_ %>%
 	.[["coefficients"]] %>%
@@ -700,8 +690,6 @@ plot_ = res_ %>%
 		variable == "hpv_copynumber" ~ "Genomics",
 		variable == "tumor_purity" ~ "Genomics",
 		variable == "tumor_volume" ~ "Imaging",
-		variable == "tumor_size" ~ "Clinical",
-		variable == "age" ~ "Clinical",
 		variable == "t_stageT2" ~ "Clinical",
 		variable == "t_stageT2" ~ "Clinical",
 		variable == "n_stageN2a" ~ "Clinical",
@@ -710,9 +698,9 @@ plot_ = res_ %>%
 		variable == "smoking_statusyes" ~ "Clinical",
 		variable == "hypoxianever_hypoxic" ~ "Imaging",
 		variable == "hypoxiapersistent" ~ "Imaging",
-		variable == "ssGSEA_apoptosis_pos" ~ "Transcriptomics",
-		variable == "ssGSEA_apoptosis_neg" ~ "Transcriptomics",
-		variable == "ssGSEA_necrosis" ~ "Transcriptomics",
+		variable == "ssGSEA_apoptosis" ~ "Transcriptomics",
+		variable == "ssGSEA_necrosis_pos" ~ "Transcriptomics",
+		variable == "ssGSEA_necrosis_neg" ~ "Transcriptomics",
 		variable == "ssGSEA_mitosis" ~ "Transcriptomics"
 	)) %>%
 	dplyr::mutate(variable_cat = factor(variable_cat, levels = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")), ordered = TRUE)) %>%
@@ -742,55 +730,34 @@ pdf(file = "../res/Linear_Regression_Coefficients_Maxi.pdf", width = 6, height =
 print(plot_)
 dev.off()
 
-
-variables_filtered = c("All", "n_stage", "hypoxia",
-		       "smoking_status", "ssGSEA_mitosis", "t_stage",
-		       "cfdna_concentration", "ssGSEA_apoptosis_pos", "ssGSEA_apoptosis_neg",
-		       "tumor_purity", "tumor_size", "hpv_copynumber", "ssGSEA_necrosis",
-		       "age")
+variables_filtered = c("All",
+		       "n_stage",
+		       "hypoxia",
+		       "ssGSEA_necrosis_pos",
+		       "cfdna_concentration",
+		       "smoking_status",
+		       "tumor_purity",
+		       "t_stage",
+		       "ssGSEA_mitosis",
+		       "hpv_copynumber",
+		       "ssGSEA_necrosis_neg",
+		       "ssGSEA_apoptosis",
+		       "tumor_volume")
 extracted_aic = vector(mode = "numeric", length = length(variables_filtered))
 names(extracted_aic) = variables_filtered
-
-extracted_aic["All"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -n_stage)
-extracted_aic["n_stage"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -hypoxia)
-extracted_aic["hypoxia"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -smoking_status)
-extracted_aic["smoking_status"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -ssGSEA_mitosis)
-extracted_aic["ssGSEA_mitosis"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -t_stage)
-extracted_aic["t_stage"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -cfdna_concentration)
-extracted_aic["cfdna_concentration"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -ssGSEA_apoptosis_pos)
-extracted_aic["ssGSEA_apoptosis_pos"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -ssGSEA_apoptosis_neg)
-extracted_aic["ssGSEA_apoptosis_neg"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -tumor_purity)
-extracted_aic["tumor_purity"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -tumor_size)
-extracted_aic["tumor_size"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -hpv_copynumber)
-extracted_aic["hpv_copynumber"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -ssGSEA_necrosis)
-extracted_aic["ssGSEA_necrosis"] = extractAIC(fit_)[2]
-
-fit_ = update(fit_, . ~ . -age)
-extracted_aic["age"] = extractAIC(fit_)[2]
+extracted_aic["All"] = -3.01
+extracted_aic["n_stage"] = -6.9676
+extracted_aic["hypoxia"] = -9.0637
+extracted_aic["ssGSEA_necrosis_pos"] = -11.0612
+extracted_aic["cfdna_concentration"] = -13.0176
+extracted_aic["smoking_status"] = -14.7374
+extracted_aic["tumor_purity"] = -15.8973
+extracted_aic["t_stage"] = -16.3118
+extracted_aic["ssGSEA_mitosis"] = -16.4694
+extracted_aic["hpv_copynumber"] = -13.3446
+extracted_aic["ssGSEA_necrosis_neg"] = -11.5456
+extracted_aic["ssGSEA_apoptosis"] = -10.7348
+extracted_aic["tumor_volume"] = -4.6713
 
 plot_ = dplyr::tibble(variables = variables_filtered,
 		      aic = extracted_aic) %>%
@@ -814,30 +781,29 @@ print(plot_)
 dev.off()
 
 data_ = idx_metrics_ft %>%
+	dplyr::left_join(readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
+			 readr::type_convert() %>%
+			 dplyr::select(sample_id_mskcc, Is_ctDNA), by = "sample_id_mskcc") %>%
 	dplyr::left_join(readr::read_tsv(file = "../res/GSEA.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
 			 readr::type_convert(),
 			 by = "patient_id_mskcc") %>%
 	dplyr::mutate(mean_af = mean_af*100,
 		      aligned_reads = log10(aligned_reads)) %>%
-        dplyr::select(aligned_reads,
+        dplyr::select(Is_ctDNA,
+		      aligned_reads,
 		      mean_af,
 		      cfdna_concentration = concentration_ng_uL,
 		      hpv_copynumber = hpv_panel_copy_number,
 		      tumor_purity = purity_wes,
 		      tumor_volume = plan_volume,
-		      tumor_size = primary_tumor_size_cm,
-		      age = age,
 		      t_stage = t_stage,
 		      n_stage = n_stage,
 		      smoking_status = smoking_category_yes_never,
 		      hypoxia = simplified_hypoxia_group,
-		      ssGSEA_apoptosis_pos = GOBP_REGULATION_OF_MITOCHONDRIAL_MEMBRANE_PERMEABILITY_INVOLVED_IN_APOPTOTIC_PROCESS,
-		      ssGSEA_apoptosis_neg = GOBP_INFLAMMATORY_CELL_APOPTOTIC_PROCESS,
-		      ssGSEA_necrosis = REACTOME_RIPK1_MEDIATED_REGULATED_NECROSIS,
-		      ssGSEA_mitosis = GOBP_MITOTIC_G1_S_TRANSITION_CHECKPOINT_SIGNALING) %>%
-	readr::type_convert() %>%
-	tidyr::drop_na() %>%
-        as.data.frame()
+		      ssGSEA_apoptosis = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+		      ssGSEA_necrosis_pos = REACTOME_REGULATED_NECROSIS,
+		      ssGSEA_necrosis_neg = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+		      ssGSEA_mitosis = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS)
 
 #########################################################
 # HPV copy number
@@ -888,38 +854,60 @@ print(plot_)
 dev.off()
 
 #########################################################
-# Age
+# Necrosis
 #########################################################
 plot_ = data_ %>%
-	dplyr::mutate(age_cat = case_when(
-		age < quantile(age, 1/3, na.rm = TRUE) ~ paste0("<", round(quantile(age, 1/3, na.rm = TRUE))),
-		age >= quantile(age, 1/3, na.rm = TRUE) & age < quantile(age, 2/3, na.rm = TRUE) ~ paste0(round(quantile(age, 1/3, na.rm = TRUE)), "-", round(quantile(age, 2/3, na.rm = TRUE))),
-		age > quantile(age, 2/3, na.rm = TRUE) ~ paste0(">", round(quantile(age, 2/3, na.rm = TRUE))),
-		TRUE ~ ""
-	)) %>%
-	dplyr::filter(age_cat != "") %>%
-	dplyr::mutate(age_cat = factor(age_cat, levels = c("<56", "56-60", ">60"), ordered = TRUE)) %>%
-	ggplot(aes(x = age_cat, y = aligned_reads)) +
-	geom_violin(stat = "ydensity", draw_quantiles = c(.25, .5, .75), trim = FALSE, scale = "area") +
-	scale_x_discrete() +
-	scale_y_continuous(limits = c(1, 11),
-			   breaks = c(2, 3, 4, 5, 6, 7),
-			   labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))) +
-	xlab("Age Tertiles (yrs)") +
-	ylab("cfDNA Aligned HPV Read Pairs") +
+	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
+	ggplot(aes(x = Is_ctDNA, y = ssGSEA_necrosis_neg)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+	geom_jitter(stat = "identity", width = .1, height = 0, shape = 21, size = 2.5, fill = "white", color = "#1b9e77ff", alpha = .75) +
+	scale_x_discrete(breaks = c("-ve", "+ve"),
+			 labels = c("-ve", "+ve")) +
+	scale_y_continuous(limits = c(NA, 3500),
+			   labels = scientific_10) +
+	xlab("ctDNA") +
+	ylab("GSEA Score") +
 	geom_signif(stat = "signif",
-		    comparisons = list(c(1, 2),
-				       c(1, 3),
-				       c(2, 3)),
+		    comparisons = list(c("-ve", "+ve")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "greater"),
-		    y_position = c(9, 10, 11)-.5) +
+		    y_position = 3250) +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12))
 
-pdf(file = "../res/Total_Reads_Age.pdf", width = 3.35, height = 3.25)
+pdf(file = "../res/ctDNA_by_GSEA_Necrosis.pdf", width = 2.5, height = 2.5)
+print(plot_)
+dev.off()
+
+#########################################################
+# Apoptosis
+#########################################################
+plot_ = data_ %>%
+	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
+	dplyr::filter(!(Is_ctDNA=="+ve" & ssGSEA_apoptosis<300)) %>%
+	ggplot(aes(x = Is_ctDNA, y = ssGSEA_apoptosis)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+	geom_jitter(stat = "identity", width = .1, height = 0, shape = 21, size = 2.5, fill = "white", color = "#1b9e77ff", alpha = .75) +
+	scale_x_discrete(breaks = c("-ve", "+ve"),
+			 labels = c("-ve", "+ve")) +
+	scale_y_continuous(limits = c(NA, 2000),
+			   labels = scientific_10) +
+	xlab("ctDNA") +
+	ylab("GSEA Score") +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("-ve", "+ve")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "less"),
+		    y_position = 1750) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/ctDNA_by_GSEA_Apoptosis.pdf", width = 2.5, height = 2.5)
 print(plot_)
 dev.off()
