@@ -677,9 +677,10 @@ plot_ = smry_ %>%
 	dplyr::mutate(week = factor(week, levels = c("Pre-treatment", "Week 1", "Week 2", "Week 3"), ordered = TRUE)) %>%
 	dplyr::mutate(end_point = factor(end_point)) %>%
 	dplyr::filter(clinical_variable == "Composite end-point") %>%
-	ggplot(aes(x = end_point, y = 100*AF)) +
-	geom_boxplot(stat = "boxplot", width = .85, outlier.shape = NA, color = "black", fill = "white") +
+	ggplot(aes(x = end_point, y = 100*AF, color = end_point)) +
+	geom_boxplot(stat = "boxplot", width = .85, outlier.shape = NA, fill = "white") +
 	geom_jitter(stat = "identity", shape = 21, fill = "white", width = .15, height = 0, size = 2.5) +
+	scale_color_brewer(type = "qual", palette = 7) +
 	scale_x_discrete() +
 	scale_y_log10(limits = c(0.001, 500),
 		      breaks = c(0.001, 0.01, 0.1, 1, 10, 100),
