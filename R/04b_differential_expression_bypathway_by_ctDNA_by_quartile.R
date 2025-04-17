@@ -150,7 +150,7 @@ plot_ = setof_allsignatures %>%
 	guides(fill = guide_legend(title="Pathway\nRelatedness", override.aes = list(size = 3, shape = 21), order = 1),
 	       shape = guide_legend(title="MsigDB\nCollection", override.aes = list(size = 3), order = 2))
 
-pdf(file = "../res/Differential_Expression_by_Pathway_ctDNA_outer_quartile.pdf", width = 5*1.25, height = 4*1.25)
+pdf(file = "../res/Differential_Expression_by_Pathway_ctDNA_Outer_Quartile.pdf", width = 5*1.25, height = 4*1.25)
 print(plot_)
 dev.off()
 
@@ -297,6 +297,6 @@ plot_ = setof_allsignatures %>%
 	guides(fill = guide_legend(title="Pathway\nRelatedness", override.aes = list(size = 3, shape = 21), order = 1),
 	       shape = guide_legend(title="MsigDB\nCollection", override.aes = list(size = 3), order = 2))
 
-pdf(file = "../res/Differential_Expression_by_Pathway_ctDNA_postive_negative.pdf", width = 5*1.25, height = 4*1.25)
+pdf(file = "../res/Differential_Expression_by_Pathway_ctDNA_Postive_Negative.pdf", width = 5*1.25, height = 4*1.25)
 print(plot_)
 dev.off()

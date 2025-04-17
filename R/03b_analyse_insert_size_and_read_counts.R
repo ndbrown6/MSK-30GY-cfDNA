@@ -234,6 +234,40 @@ pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_apparent_False_Negat
 print(plot_)
 dev.off()
 
+plot_ = insert_size_smry_ft %>%
+	dplyr::filter(FRAGMENT_LENGTH==0) %>%
+	dplyr::rename(sample_name = SAMPLE_NAME) %>%
+	dplyr::left_join(manifest %>%
+			 dplyr::select(sample_name, hpv_type_wes_wgs), by = "sample_name") %>%
+	dplyr::filter(hpv_type_wes_wgs != "HPV-16") %>%
+	dplyr::filter(hpv_type_wes_wgs != "Unknown") %>%
+	dplyr::left_join(insert_size_metrics %>%
+			 dplyr::rename(sample_name = SAMPLE_NAME) %>%
+			 dplyr::filter(MEAN_INSERT_SIZE<=30) %>%
+			 dplyr::filter(MAX_INSERT_SIZE<=175) %>%
+			 dplyr::mutate(is_present = TRUE), by = "sample_name") %>%
+	dplyr::filter(is_present) %>%
+	dplyr::select(-hpv_type_wes_wgs, -is_present) %>%
+	ggplot(aes(x = INSERT_SIZE, y = READ_COUNT, group = sample_name)) +
+	geom_rect(aes(xmin = min(primer_set$insert_size), xmax = max(primer_set$insert_size), ymin = 0, ymax = 495),
+		  fill = "grey90", color = NA, alpha = .75) +
+	geom_smooth(stat = "smooth", method = "loess", formula = y ~x, color = "#1b9e77", se = FALSE, size = .25, n = 250, span = .15) +
+	scale_x_sqrt(limits = c(10, 500),
+		     breaks = c(10, 25, 50, 100, 200, 300, 400, 500),
+		     labels = c(10, 25, 50, 100, 200, 300, 400, 500)) +
+	scale_y_continuous(limits = c(0, 500),
+		     	   labels = scientific_10) +
+	xlab("Insert Size (bp)") +
+	ylab("Number of Aligned Read Pairs") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      strip.background = element_rect(colour="white", fill="white"))
+	
+pdf(file = "../res/Insert_Size_Distribution_Primer_Filtered_True_Negative.pdf", width = 3.25, height = 3.25/1.5)
+print(plot_)
+dev.off()
+
 plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
 	readr::type_convert() %>%
 	dplyr::rename(Is_ctDNA__HPV = Is_ctDNA) %>%
@@ -272,7 +306,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)))
 
-pdf(file = "../res/MRD_HPV_HPV_Copy_number_Misclassifications.pdf", width = 2.75, height = 2.9)
+pdf(file = "../res/MRD_HPV_HPV_Copy_number_Misclassifications.pdf", width = 2.75, height = 3.25/1.5)
 print(plot_)
 dev.off()
 
@@ -314,7 +348,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)))
 
-pdf(file = "../res/MRD_HPV_HPV_Copy_number_Correct_Classifications.pdf", width = 2.75, height = 2.9)
+pdf(file = "../res/MRD_HPV_HPV_Copy_number_Correct_Classifications.pdf", width = 2.75, height = 3.25/1.5)
 print(plot_)
 dev.off()
 
@@ -464,61 +498,61 @@ pdf(file = "../res/Mean_AF_Number_Read_Pairs_Adjusted.pdf", width = 3.35, height
 print(plot_)
 dev.off()
 
-plot_ = res_ %>%
-	.[["coefficients"]] %>%
-	as.data.frame() %>%
-	tibble::rownames_to_column("variable") %>%
-	dplyr::as_tibble() %>%
-	dplyr::mutate(variable = case_when(
-		variable == "mean_af" ~ "Mean AF (%)",
-		variable == "hpv_panel_copy_number" ~ "HPV copy number",
-		variable == "(Intercept)" ~ "Y intercept"
-	)) %>%
-	dplyr::mutate(is_significant = ifelse(`Pr(>|t|)`<.1, "Yes", "No")) %>%
-	dplyr::arrange(Estimate) %>%
-	dplyr::mutate(variable = factor(variable, levels = variable, ordered = TRUE)) %>%
-	ggplot(aes(x = variable, ymin = 0, ymax = Estimate, y = Estimate, fill = is_significant, size = -log10(`Pr(>|t|)`))) +
-	geom_linerange(stat = "identity", size = .5) +
-	geom_hline(yintercept = 0, size = 1) +
-	geom_point(stat = "identity", shape = 21) +
-	xlab("") +
-	ylab("") +
-	scale_fill_manual(values = c("No" = "#bdbdbd", "Yes" = "#e41a1c")) +
-	scale_x_discrete() +
-	scale_y_continuous() +
-	coord_flip() +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12)) +
-	guides(fill = FALSE,
-	       size = guide_legend(title = expression(-Log[10]~"p-value")))
+#plot_ = res_ %>%
+#	.[["coefficients"]] %>%
+#	as.data.frame() %>%
+#	tibble::rownames_to_column("variable") %>%
+#	dplyr::as_tibble() %>%
+#	dplyr::mutate(variable = case_when(
+#		variable == "mean_af" ~ "Mean AF (%)",
+#		variable == "hpv_panel_copy_number" ~ "HPV copy number",
+#		variable == "(Intercept)" ~ "Y intercept"
+#	)) %>%
+#	dplyr::mutate(is_significant = ifelse(`Pr(>|t|)`<.1, "Yes", "No")) %>%
+#	dplyr::arrange(Estimate) %>%
+#	dplyr::mutate(variable = factor(variable, levels = variable, ordered = TRUE)) %>%
+#	ggplot(aes(x = variable, ymin = 0, ymax = Estimate, y = Estimate, fill = is_significant, size = -log10(`Pr(>|t|)`))) +
+#	geom_linerange(stat = "identity", size = .5) +
+#	geom_hline(yintercept = 0, size = 1) +
+#	geom_point(stat = "identity", shape = 21) +
+#	xlab("") +
+#	ylab("") +
+#	scale_fill_manual(values = c("No" = "#bdbdbd", "Yes" = "#e41a1c")) +
+#	scale_x_discrete() +
+#	scale_y_continuous() +
+#	coord_flip() +
+#	theme_classic() +
+#	theme(axis.title.x = element_text(margin = margin(t = 20)),
+#	      axis.title.y = element_text(margin = margin(r = 20)),
+#	      axis.text.x = element_text(size = 12),
+#	      axis.text.y = element_text(size = 12)) +
+#	guides(fill = FALSE,
+#	       size = guide_legend(title = expression(-Log[10]~"p-value")))
+#
+#pdf(file = "../res/Linear_Regression_Coefficients_Mini.pdf", width = 6, height = 1.75)
+#print(plot_)
+#dev.off()
 
-pdf(file = "../res/Linear_Regression_Coefficients_Mini.pdf", width = 6, height = 1.75)
-print(plot_)
-dev.off()
-
-plot_ = dplyr::tibble(variables = c("None", "- HPV copy\nnumber", "Mean\nAF (%)"),
-		      aic = c(-15.6000, -6.9827, -0.6432)) %>%
-	dplyr::mutate(index = 1:n()) %>%
-	ggplot(aes(x = index, y = aic)) +
-	geom_line(stat = "identity", size = .95) +
-	geom_point(stat = "identity", color = "black", fill = "white", shape = 21, size = 3) +
-	scale_x_continuous(breaks = 1:3,
-			   labels = c("None", "HPV copy\nnumber", "Mean\nAF (%)")) +
-	scale_y_continuous(limits = c(-20, NA)) +
-	xlab("") +
-	ylab("AIC") +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 9, angle = 90, vjust = 0.5, hjust=1),
-	      axis.text.y = element_text(size = 12))
-
-pdf(file = "../res/Linear_Regression_Stepwise_AIC_Mini.pdf", width = 2, height = 2)
-print(plot_)
-dev.off()
+#plot_ = dplyr::tibble(variables = c("None", "- HPV copy\nnumber", "Mean\nAF (%)"),
+#		      aic = c(-15.6000, -6.9827, -0.6432)) %>%
+#	dplyr::mutate(index = 1:n()) %>%
+#	ggplot(aes(x = index, y = aic)) +
+#	geom_line(stat = "identity", size = .95) +
+#	geom_point(stat = "identity", color = "black", fill = "white", shape = 21, size = 3) +
+#	scale_x_continuous(breaks = 1:3,
+#			   labels = c("None", "HPV copy\nnumber", "Mean\nAF (%)")) +
+#	scale_y_continuous(limits = c(-20, NA)) +
+#	xlab("") +
+#	ylab("AIC") +
+#	theme_classic() +
+#	theme(axis.title.x = element_text(margin = margin(t = 20)),
+#	      axis.title.y = element_text(margin = margin(r = 20)),
+#	      axis.text.x = element_text(size = 9, angle = 90, vjust = 0.5, hjust=1),
+#	      axis.text.y = element_text(size = 12))
+#
+#pdf(file = "../res/Linear_Regression_Stepwise_AIC_Mini.pdf", width = 2, height = 2)
+#print(plot_)
+#dev.off()
 
 #########################################################
 # Liner Regression
@@ -558,60 +592,60 @@ data_ = idx_metrics_ft %>%
 	dplyr::filter(!duplicated(patient_id_mskcc)) %>%
 	dplyr::select(-patient_id_mskcc) %>%
         as.data.frame()
-	
+
 smry_reads = summary(lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af)))
 smry_af = summary(lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hpv_copynumber)))
 
-plot_ = smry_reads$coefficients %>%
-	as.data.frame() %>%
-	tibble::rownames_to_column("variable") %>%
-	dplyr::select(variable, coefficient_reads = `Estimate`, p_value_reads = `Pr(>|t|)`) %>%
-	dplyr::left_join(smry_af$coefficients %>%
-			 as.data.frame() %>%
-			 tibble::rownames_to_column("variable") %>%
-			 dplyr::select(variable, coefficient_af = `Estimate`, p_value_af = `Pr(>|t|)`),
-			 by = "variable") %>%
-	dplyr::filter(variable != "(Intercept)") %>%
-	dplyr::mutate(variable_cat = case_when(
-		variable == "cfdna_concentration" ~ "Genomics",
-		variable == "hpv_copynumber" ~ "Genomics",
-		variable == "tumor_purity" ~ "Genomics",
-		variable == "tumor_volume" ~ "Imaging",
-		variable == "t_stageT2" ~ "Clinical",
-		variable == "t_stageT2" ~ "Clinical",
-		variable == "n_stageN2a" ~ "Clinical",
-		variable == "n_stageN2b" ~ "Clinical",
-		variable == "n_stageN2c" ~ "Clinical",
-		variable == "smoking_statusyes" ~ "Clinical",
-		variable == "hypoxianever_hypoxic" ~ "Imaging",
-		variable == "hypoxiapersistent" ~ "Clinical",
-		variable == "ssGSEA_apoptosis" ~ "Transcriptomics",
-		variable == "ssGSEA_necrosis_pos" ~ "Transcriptomics",
-		variable == "ssGSEA_necrosis_neg" ~ "Transcriptomics",
-		variable == "ssGSEA_mitosis" ~ "Transcriptomics"
-	)) %>%
-	dplyr::mutate(is_significant = p_value_reads<.1 | p_value_af<.1) %>%
-	dplyr::mutate(variable_cat = factor(variable_cat, levels = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")), ordered = TRUE)) %>%
-	ggplot(aes(x = coefficient_reads, y = coefficient_af, shape = variable_cat, fill = is_significant)) +
-	geom_abline(intercept = 0, slope = 1, color = "goldenrod3", size = 1, alpha = .85, linetype = 2) +
-	geom_point(stat = "identity", color = "black", size = 3, alpha = .75) +
-	scale_fill_manual(values = c("#ffffff", "#e41a1c")) +
-	scale_shape_manual(values = c("Genomics" = 21, "Transcriptomics" = 22, "Imaging" = 23, "Clinical" = 24)) +
-	scale_x_continuous(limits = c(-1, 2)) +
-	scale_y_continuous(limits = c(-1, 2)) +
-	xlab("Coefficients variables\nregressed number of reads") +
-	ylab("Coefficients variables\nregressed Mean AF") +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 10)),
-	      axis.title.y = element_text(margin = margin(r = 10)),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12)) +
-	guides(fill = FALSE,
-	       shape = guide_legend(title = "Variable\nCategory", order = 1, override.aes = list(size = 3)))
-
-pdf(file = "../res/Compare_Coefficients_Mean_AF_Number_Read_Pairs.pdf", width = 4.35, height = 3)
-print(plot_)
-dev.off()
+#plot_ = smry_reads$coefficients %>%
+#	as.data.frame() %>%
+#	tibble::rownames_to_column("variable") %>%
+#	dplyr::select(variable, coefficient_reads = `Estimate`, p_value_reads = `Pr(>|t|)`) %>%
+#	dplyr::left_join(smry_af$coefficients %>%
+#			 as.data.frame() %>%
+#			 tibble::rownames_to_column("variable") %>%
+#			 dplyr::select(variable, coefficient_af = `Estimate`, p_value_af = `Pr(>|t|)`),
+#			 by = "variable") %>%
+#	dplyr::filter(variable != "(Intercept)") %>%
+#	dplyr::mutate(variable_cat = case_when(
+#		variable == "cfdna_concentration" ~ "Genomics",
+#		variable == "hpv_copynumber" ~ "Genomics",
+#		variable == "tumor_purity" ~ "Genomics",
+#		variable == "tumor_volume" ~ "Imaging",
+#		variable == "t_stageT2" ~ "Clinical",
+#		variable == "t_stageT2" ~ "Clinical",
+#		variable == "n_stageN2a" ~ "Clinical",
+#		variable == "n_stageN2b" ~ "Clinical",
+#		variable == "n_stageN2c" ~ "Clinical",
+#		variable == "smoking_statusyes" ~ "Clinical",
+#		variable == "hypoxianever_hypoxic" ~ "Imaging",
+#		variable == "hypoxiapersistent" ~ "Clinical",
+#		variable == "ssGSEA_apoptosis" ~ "Transcriptomics",
+#		variable == "ssGSEA_necrosis_pos" ~ "Transcriptomics",
+#		variable == "ssGSEA_necrosis_neg" ~ "Transcriptomics",
+#		variable == "ssGSEA_mitosis" ~ "Transcriptomics"
+#	)) %>%
+#	dplyr::mutate(is_significant = p_value_reads<.1 | p_value_af<.1) %>%
+#	dplyr::mutate(variable_cat = factor(variable_cat, levels = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")), ordered = TRUE)) %>%
+#	ggplot(aes(x = coefficient_reads, y = coefficient_af, shape = variable_cat, fill = is_significant)) +
+#	geom_abline(intercept = 0, slope = 1, color = "goldenrod3", size = 1, alpha = .85, linetype = 2) +
+#	geom_point(stat = "identity", color = "black", size = 3, alpha = .75) +
+#	scale_fill_manual(values = c("#ffffff", "#e41a1c")) +
+#	scale_shape_manual(values = c("Genomics" = 21, "Transcriptomics" = 22, "Imaging" = 23, "Clinical" = 24)) +
+#	scale_x_continuous(limits = c(-1, 2)) +
+#	scale_y_continuous(limits = c(-1, 2)) +
+#	xlab("Coefficients variables\nregressed number of reads") +
+#	ylab("Coefficients variables\nregressed Mean AF") +
+#	theme_classic() +
+#	theme(axis.title.x = element_text(margin = margin(t = 10)),
+#	      axis.title.y = element_text(margin = margin(r = 10)),
+#	      axis.text.x = element_text(size = 12),
+#	      axis.text.y = element_text(size = 12)) +
+#	guides(fill = FALSE,
+#	       shape = guide_legend(title = "Variable\nCategory", order = 1, override.aes = list(size = 3)))
+#
+#pdf(file = "../res/Compare_Coefficients_Mean_AF_Number_Read_Pairs.pdf", width = 4.35, height = 3)
+#print(plot_)
+#dev.off()
 
 data_ = idx_metrics_ft %>%
 	dplyr::left_join(readr::read_tsv(file = "../res/GSEA.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
@@ -854,6 +888,38 @@ print(plot_)
 dev.off()
 
 #########################################################
+# Hypoxia
+#########################################################
+plot_ = data_ %>%
+	dplyr::mutate(hypoxia = factor(hypoxia, levels = c("never_hypoxic", "converted", "persistent"), ordered = TRUE)) %>%
+	ggplot(aes(x = hypoxia, y = aligned_reads)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+	geom_jitter(stat = "identity", width = .1, height = 0, shape = 21, size = 2.5, fill = "white", color = "#1b9e77ff", alpha = .75) +
+	scale_x_discrete(breaks = c("never_hypoxic", "converted", "persistent"),
+			 labels = c("Never\nHypoxic", "Converted", "Persistent\nHypoxia")) +
+	scale_y_continuous(limits = c(2, 8),
+			   breaks = c(2, 3, 4, 5, 6, 7),
+			   labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))) +
+	xlab("Hypoxia") +
+	ylab("cfDNA Aligned HPV Read Pairs") +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("never_hypoxic", "converted"),
+				       c("never_hypoxic", "persistent"),
+				       c("converted", "persistent")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "less"),
+		    y_position = log10(c(25E5, 100E5, 500E5))) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/Total_Reads_Hypoxia_Resolution.pdf", width = 3.35, height = 3)
+print(plot_)
+dev.off()
+
+#########################################################
 # Necrosis
 #########################################################
 plot_ = data_ %>%
@@ -901,7 +967,7 @@ plot_ = data_ %>%
 		    comparisons = list(c("-ve", "+ve")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "less"),
-		    y_position = 1750) +
+		    y_position = 1850) +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
@@ -909,5 +975,34 @@ plot_ = data_ %>%
 	      axis.text.y = element_text(size = 12))
 
 pdf(file = "../res/ctDNA_by_GSEA_Apoptosis.pdf", width = 2.5, height = 2.5)
+print(plot_)
+dev.off()
+
+#########################################################
+# Mitosis
+#########################################################
+plot_ = data_ %>%
+	dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
+	ggplot(aes(x = Is_ctDNA, y = ssGSEA_mitosis)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+	geom_jitter(stat = "identity", width = .1, height = 0, shape = 21, size = 2.5, fill = "white", color = "#1b9e77ff", alpha = .75) +
+	scale_x_discrete(breaks = c("-ve", "+ve"),
+			 labels = c("-ve", "+ve")) +
+	scale_y_continuous(limits = c(NA, 3500),
+			   labels = scientific_10) +
+	xlab("ctDNA") +
+	ylab("GSEA Score") +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("-ve", "+ve")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "less"),
+		    y_position = 3400) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/ctDNA_by_GSEA_Mitosis.pdf", width = 2.5, height = 2.5)
 print(plot_)
 dev.off()

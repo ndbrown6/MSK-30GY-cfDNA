@@ -230,12 +230,22 @@ colnames(m) = unlist(lapply(colnames(m), function(x) {unlist(strsplit(x, "_"))[1
 rownames(m) = unlist(lapply(rownames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 
 pdf(file = "../res/Cross_Correlation_targets_Number_of_Reads_HPV-16.pdf", width = 3.5, height = 3)
-corrplot.mixed(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
-	       lower = "ellipse",
-	       upper = "number",
-	       is.corr = FALSE,
-	       order = "original",
-	       outline = TRUE)
+corrplot(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
+	 method = "circle",
+	 type = "lower",
+	 col = colorRampPalette(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))(25),
+	 is.corr = FALSE,
+	 diag = FALSE,
+	 addgrid.col = NA,
+	 addCoef.col = "black",
+	 order = "original",
+	 number.cex = .55,
+	 number.font = 1,
+	 tl.cex = 1,
+	 tl.col = "black",
+	 cl.pos = "r",
+	 cl.ratio = .25,
+	 cl.length = 7)
 dev.off()
 
 #########################################################
@@ -320,10 +330,20 @@ colnames(m) = unlist(lapply(colnames(m), function(x) {unlist(strsplit(x, "_"))[1
 rownames(m) = unlist(lapply(rownames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 
 pdf(file = "../res/Cross_Correlation_targets_Mean_Insert_Size_HPV-16.pdf", width = 3.5, height = 3)
-corrplot.mixed(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
-	       lower = "ellipse",
-	       upper = "number",
-	       is.corr = FALSE,
-	       order = "original",
-	       outline = TRUE)
+corrplot(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
+	 method = "circle",
+	 type = "lower",
+	 col = colorRampPalette(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))(25),
+	 is.corr = FALSE,
+	 diag = FALSE,
+	 addgrid.col = NA,
+	 addCoef.col = "black",
+	 order = "original",
+	 number.cex = .55,
+	 number.font = 1,
+	 tl.cex = 1,
+	 tl.col = "black",
+	 cl.pos = "r",
+	 cl.ratio = .25,
+	 cl.length = 7)
 dev.off()

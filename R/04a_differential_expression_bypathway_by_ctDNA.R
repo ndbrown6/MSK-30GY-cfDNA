@@ -260,6 +260,7 @@ draw(Heatmap(matrix = data_ %>%
 	     show_row_names = TRUE,
 	     row_names_side = "left",
 	     row_names_gp = gpar(fontsize = 8),
+	     show_row_dend = FALSE,
 	     
 	     cluster_columns = FALSE,
 	     show_column_names = FALSE,

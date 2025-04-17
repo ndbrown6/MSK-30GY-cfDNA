@@ -18,6 +18,7 @@ suppressPackageStartupMessages(library("ggforce"))
 suppressPackageStartupMessages(library("ggord"))
 suppressPackageStartupMessages(library("ggpubr"))
 suppressPackageStartupMessages(library("ggridges"))
+suppressPackageStartupMessages(library("gghalves"))
 suppressPackageStartupMessages(library("cowplot"))
 suppressPackageStartupMessages(library("viridis"))
 suppressPackageStartupMessages(library("superheat"))
@@ -49,7 +50,16 @@ suppressPackageStartupMessages(library("limma"))
 suppressPackageStartupMessages(library("sensemakr"))
 suppressPackageStartupMessages(library("Rtsne"))
 suppressPackageStartupMessages(library("ggdendro"))
-
+suppressPackageStartupMessages(library("rpart.plot"))
+suppressPackageStartupMessages(library("plyr"))
+suppressPackageStartupMessages(library("ipred"))
+suppressPackageStartupMessages(library("vip"))
+suppressPackageStartupMessages(library("e1071"))
+suppressPackageStartupMessages(library("TCGAmutations"))
+suppressPackageStartupMessages(library("party"))
+suppressPackageStartupMessages(library("partykit"))
+suppressPackageStartupMessages(library("ggparty"))
+suppressPackageStartupMessages(library("randomForest"))
 
 registerDoMC(8)
 
@@ -69,29 +79,29 @@ url_no_node_dissection <- "../data/patients_0_nodal_dissection.txt"
 url_clinical <- "../data/clinical.txt"
 url_tumor_variants <- "../data/all_variants.txt"
 url_hotspots <- "../data/hotspots.txt"
-
 url_aln_metrics <- "../data/aln_metrics.txt"
 url_aln_metrics_ft <- "../data/aln_metrics_ft.txt"
-
 url_hs_metrics <- "../data/hs_metrics.txt"
 url_hs_metrics_ft <- "../data/hs_metrics_ft.txt"
-
 url_hs_target_metrics <- "../data/hs_metrics_target.txt"
 url_hs_target_metrics_ft <- "../data/hs_metrics_target_ft.txt"
-
 url_idx_metrics <- "../data/idx_metrics.txt"
 url_idx_metrics_ft <- "../data/idx_metrics_ft.txt"
-
 url_insert_metrics <- "../data/insert_metrics.txt"
 url_insert_metrics_ft <- "../data/insert_metrics_ft.txt"
 url_insert_metrics_by_gene <- "../data/insert_metrics_by_gene.txt"
-
 url_insert_summary <- "../data/insert_summary.txt"
 url_insert_summary_ft <- "../data/insert_summary_ft.txt"
-
 url_gatk_summary <- "../data/gatk_summary.txt"
-
 url_tpm_by_gene <- "../data/tpm_by_gene.txt"
+
+url_tcga_clinical <- "../data/clinical_tcga_hnsc_mc3.txt"
+
+url_gene_list <- list(
+	"foundation_one" = "../data/Foundation_One_Liquid_CDx.txt",
+	"guardant_360" = "../data/Guardant_360_CDx.txt",
+	"msk_accessv1" = "../data/MSK-ACCESS-v2_0.txt"
+)
 
 target_contigs <- c("HPV-16" = "NC001526.4",
 		    "HPV-18" = "NC001357.1",

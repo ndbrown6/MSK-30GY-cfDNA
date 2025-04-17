@@ -35,6 +35,16 @@ nodal_dissection_smry = readr::read_tsv(file = url_no_node_dissection, col_names
 			readr::type_convert() %>%
 			dplyr::rename(patient_id_mskcc = sample)
 
+clinical = readr::read_tsv(file = url_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+	   readr::type_convert() %>%
+	   dplyr::rename(Tumor_Sample_Barcode = tumor_id_wes) %>%
+	   tidyr::drop_na(Tumor_Sample_Barcode) %>%
+	   dplyr::select(-additional_crt_post_neck_dissection) %>%
+	   dplyr::mutate(is_selected = 1)
+
+tumor_vars = readr::read_tsv(file = url_tumor_variants, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+	     readr::type_convert()
+	     
 #==================================================
 ## Number of unique patients with MRD assay
 #==================================================
@@ -147,6 +157,18 @@ print(plot_)
 dev.off()
 
 #==================================================
+## Median number of variants per patient
+#==================================================
+tumor_vars %>%
+dplyr::left_join(clinical, by = "Tumor_Sample_Barcode") %>%
+tidyr::drop_na(is_selected) %>%
+dplyr::group_by(Tumor_Sample_Barcode) %>%
+dplyr::summarize(n = n()) %>%
+.[["n"]] %>%
+median() %>%
+pander::pander(caption = "Median number of varaints per patient")
+
+#==================================================
 ## Number of variants per sample
 #==================================================
 manifest %>%
@@ -176,7 +198,100 @@ dplyr::rename(Statistic = variable, `#` = value) %>%
 pander::pander(caption = "Number of variants per sample")
 
 #==================================================
-## ctDNA HPV-MRD patient summary
+## ctDNA HPV-MRD patient cross-tab
+#==================================================
+smry__mrd = manifest %>%
+	    dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+	    dplyr::mutate(patient_id_mskcc = case_when(
+		    is.na(patient_id_mskcc) & sample_id_mskcc=="21-144-03654" ~ "CTMS-164",
+		    TRUE ~ patient_id_mskcc
+	    )) %>%
+	    dplyr::mutate(SAMPLE_NAME = paste0(sample_id_mskcc, "-", sample_id_invitae)) %>%
+	    dplyr::left_join(hpv_smry, by = "patient_id_mskcc") %>%
+	    dplyr::mutate(hpv_type_wes_wgs = case_when(
+		    is.na(hpv_type_wes_wgs) ~ "Unknown",
+		    TRUE ~ hpv_type_wes_wgs
+	    )) %>%
+	    dplyr::left_join(mrd_smry, by = "sample_uuid") %>%
+	    dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+	    dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+	    dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		    		timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+		    		TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+	    )) %>%
+	    dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
+	    dplyr::summarize(MRD = any(`MRD-Landmark_Result` == "PRESENT")) %>%
+	    dplyr::ungroup()
+
+if (file.exists("../res/Posterior_Probability_ALL.txt")) {
+	smry__hpv = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names = TRUE, col_types = cols(.default = col_character())) %>%
+		    readr::type_convert() %>%
+		    dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+	    	    dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+			    	timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+			    	TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+		    )) %>%
+		    dplyr::group_by(timepoint_weeks_since_start_of_RT, patient_name) %>%
+		    dplyr::summarize(HPV = any(Is_ctDNA == "+ve")) %>%
+		    dplyr::ungroup()
+}
+
+smry_ = smry__mrd %>%
+	dplyr::full_join(smry__hpv, by = c("timepoint_weeks_since_start_of_RT", "patient_name")) %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3", "wk5")) %>%
+	dplyr::group_by(timepoint_weeks_since_start_of_RT) %>%
+	dplyr::summarize(TP = sum(MRD & HPV),
+			 FP = sum(!MRD & HPV),
+			 FN = sum(MRD & !HPV),
+			 TN = sum(!MRD & !HPV)) %>%
+	reshape2::melt() %>%
+	reshape2::dcast(variable ~ timepoint_weeks_since_start_of_RT, value.var = "value") %>%
+	dplyr::select(-variable) %>%
+	as.list() %>%
+	lapply(function(x) { y = matrix(x, 2, 2, byrow = TRUE);
+			     rownames(y) = colnames(y) = c("+ve", "-ve");
+			     return(y)})
+
+pdf(file = "../res/ctDNA_Patient_Table_by_Time_Point_All_Absolute.pdf", width = 15, height = 10)
+corrplot(corr = do.call(cbind, smry_),
+	 method = "circle",
+	 type = "full",
+	 col = colorRampPalette(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))(25),
+	 is.corr = FALSE,
+	 diag = TRUE,
+	 addgrid.col = NA,
+	 addCoef.col = "white",
+	 order = "original",
+	 number.cex = 1,
+	 number.font = 1,
+	 tl.cex = 1,
+	 tl.col = "black",
+	 cl.pos = "r",
+	 cl.ratio = .1,
+	 cl.length = 7)
+dev.off()
+
+pdf(file = "../res/ctDNA_Patient_Table_by_Time_Point_All_Percent.pdf", width = 15, height = 10)
+corrplot(corr = do.call(cbind, lapply(smry_, function(x) {round(100*x/sum(x))})),
+	 method = "circle",
+	 type = "full",
+	 col = colorRampPalette(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))(25),
+	 is.corr = FALSE,
+	 diag = TRUE,
+	 addgrid.col = NA,
+	 addCoef.col = "white",
+	 order = "original",
+	 number.cex = 1,
+	 number.font = 1,
+	 tl.cex = 1,
+	 tl.col = "black",
+	 cl.pos = "r",
+	 cl.ratio = .1,
+	 cl.length = 7)
+dev.off()
+
+#==================================================
+## ctDNA HPV-MRD patient marginal frequency
 #==================================================
 smry__mrd = manifest %>%
 	    dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -266,10 +381,10 @@ plot_ = smry__mrd %>%
 	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3", "wk5")) %>%
 	dplyr::mutate(timepoint_weeks_since_start_of_RT = gsub(pattern = "wk", replacement = "Week ", x = timepoint_weeks_since_start_of_RT, fixed = TRUE)) %>%
 	ggplot(aes(x = timepoint_weeks_since_start_of_RT, y = value, fill = variable)) +
-	geom_bar(stat = "identity", position = "dodge", color = "black", width = .75) +
+	geom_bar(stat = "identity", position = "dodge", color = "white", width = .75) +
 	scale_fill_brewer(type = "qual", palette = 7) +
 	xlab("") +
-	ylab("% of ctDNA +ve patients") +
+	ylab("Fraction of Patients (%)") +
 	scale_x_discrete() +
 	scale_y_continuous(limits = c(0, 100),
 			   breaks = seq(from = 0, to = 100, by = 10),
@@ -279,9 +394,40 @@ plot_ = smry__mrd %>%
 	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
 	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12)) +
-	guides(fill = guide_legend(title = "ctDNA assay"))
+	guides(fill = guide_legend(title = "Assay"))
 
-pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point.pdf", width = 2.75*2, height = 3.25)
+pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point_All.pdf", width = 2.75*2, height = 3.25)
+print(plot_)
+dev.off()
+
+plot_ = smry__mrd %>%
+	dplyr::rename(PCM = `Is_ctDNA_%`) %>%
+	dplyr::left_join(smry__hpv %>%
+			 dplyr::rename(HPV = `Is_ctDNA_%`),
+			 by = c("timepoint_weeks_since_start_of_RT", "N")) %>%
+	dplyr::left_join(smry__mrd_hpv %>%
+			 dplyr::rename(Combined = `Is_ctDNA_%`),
+			 by = c("timepoint_weeks_since_start_of_RT", "N")) %>%
+	reshape2::melt() %>%
+	dplyr::filter(variable != "N") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT == "Pre-treatment") %>%
+	ggplot(aes(x = variable, y = value, fill = variable)) +
+	geom_bar(stat = "identity", position = "dodge", color = "white", width = 1) +
+	scale_fill_brewer(type = "qual", palette = 7) +
+	xlab("") +
+	ylab("Fraction of Patients (%)") +
+	scale_x_discrete() +
+	scale_y_continuous(limits = c(0, 100),
+			   breaks = seq(from = 0, to = 100, by = 10),
+			   labels = c(0, "", 20, "", 40, "", 60, "", 80, "", 100)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE)
+
+pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point_Pre-treatment.pdf", width = 1.65, height = 3.25)
 print(plot_)
 dev.off()
 		 
