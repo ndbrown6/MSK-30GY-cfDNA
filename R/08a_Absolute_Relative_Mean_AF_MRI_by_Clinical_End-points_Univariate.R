@@ -109,13 +109,13 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 
 data_ = idx_metrics_ft %>%
 	dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
-	dplyr::summarize(mean_af = mean(mean_af+1e-5, na.rm = TRUE)) %>%
+	dplyr::summarize(mean_af = mean(mean_af+(1e-5), na.rm = TRUE)) %>%
 	reshape2::dcast(formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
 			fun.aggregate = function(x) { mean(x, na.rm=TRUE) }, fill = NaN, value.var = "mean_af") %>%
 	dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
-	dplyr::mutate(rel_AF_wk1 = log2(wk1/`Pre-treatment`),
-		      rel_AF_wk2 = log2(wk2/`Pre-treatment`),
-		      rel_AF_wk3 = log2(wk3/`Pre-treatment`)) %>%
+	dplyr::mutate(rel_AF_wk1 = wk1/`Pre-treatment`,
+		      rel_AF_wk2 = wk2/`Pre-treatment`,
+		      rel_AF_wk3 = wk3/`Pre-treatment`) %>%
 	dplyr::rename(abs_AF_wk0 = `Pre-treatment`,
 		      abs_AF_wk1 = wk1,
 		      abs_AF_wk2 = wk2,
@@ -127,9 +127,9 @@ data_ = idx_metrics_ft %>%
 			 reshape2::dcast(formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
 					 fun.aggregate = function(x) { mean(x, na.rm=TRUE) }, fill = NaN, value.var = "aligned_reads") %>%
 			 dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
-			 dplyr::mutate(rel_HPV_wk1 = log2(wk1/`Pre-treatment`),
-				       rel_HPV_wk2 = log2(wk2/`Pre-treatment`),
-				       rel_HPV_wk3 = log2(wk3/`Pre-treatment`)) %>%
+			 dplyr::mutate(rel_HPV_wk1 = wk1/`Pre-treatment`,
+				       rel_HPV_wk2 = wk2/`Pre-treatment`,
+				       rel_HPV_wk3 = wk3/`Pre-treatment`) %>%
 			 dplyr::rename(abs_HPV_wk0 = `Pre-treatment`,
 				       abs_HPV_wk1 = wk1,
 				       abs_HPV_wk2 = wk2,
@@ -148,9 +148,9 @@ data_ = idx_metrics_ft %>%
 		      abs_MRI_wk1 = MRI_rawdata_wk2,
 		      abs_MRI_wk2 = MRI_rawdata_wk3,
 		      abs_MRI_wk3 = MRI_rawdata_wk4) %>%
-	dplyr::mutate(rel_MRI_wk1 = log2(abs_MRI_wk1/abs_MRI_wk0),
-		      rel_MRI_wk2 = log2(abs_MRI_wk2/abs_MRI_wk0),
-		      rel_MRI_wk3 = log2(abs_MRI_wk3/abs_MRI_wk0)) %>%
+	dplyr::mutate(rel_MRI_wk1 = (abs_MRI_wk1/abs_MRI_wk0),
+		      rel_MRI_wk2 = (abs_MRI_wk2/abs_MRI_wk0),
+		      rel_MRI_wk3 = (abs_MRI_wk3/abs_MRI_wk0)) %>%
 	dplyr::mutate(composite_end_point = case_when(
 		composite_end_point ~ 1,
 		!composite_end_point ~ 0
@@ -174,7 +174,7 @@ p1 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p1[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = composite_end_point ~ value, data = ., family = binomial(link = "logit")) %>%
+		stats::glm(formula = composite_end_point ~ log2(value), data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }
@@ -183,7 +183,7 @@ p2 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p2[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = neck_dissection_yes_no ~ value, data = ., family = binomial(link = "logit")) %>%
+		stats::glm(formula = neck_dissection_yes_no ~ log2(value), data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }
@@ -192,7 +192,7 @@ p3 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p3[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = hypoxia_resolution ~ value, data = ., family = binomial(link = "logit")) %>%
+		stats::glm(formula = hypoxia_resolution ~ log2(value), data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }
@@ -225,7 +225,7 @@ res_ = dplyr::tibble(variables = uvars,
 		     `De-escalation failure` = p2,
 		     `PET response` = p3,
 		     `Risk group` = p1) %>%
-       dplyr::mutate(Method = "logistic") %>%
+       dplyr::mutate(Method = "log") %>%
        dplyr::bind_rows(dplyr::tibble(variables = uvars,
 				      `De-escalation failure` = q2,
 				      `PET response` = q3,
@@ -235,17 +235,17 @@ res_ = dplyr::tibble(variables = uvars,
 		      `De-escalation failure` = 1,
 		      `PET response` = 1,
 		      `Risk group` = 1,
-		      Method = "logistic") %>%
+		      Method = "log") %>%
        dplyr::add_row(`variables` = "rel_MRI_wk0",
 		      `De-escalation failure` = 1,
 		      `PET response` = 1,
 		      `Risk group` = 1,
-		      Method = "logistic") %>%
+		      Method = "log") %>%
        dplyr::add_row(`variables` = "rel_HPV_wk0",
 		      `De-escalation failure` = 1,
 		      `PET response` = 1,
 		      `Risk group` = 1,
-		      Method = "logistic") %>%
+		      Method = "log") %>%
        dplyr::add_row(`variables` = "rel_AF_wk0",
 		      `De-escalation failure` = 1,
 		      `PET response` = 1,
@@ -263,7 +263,7 @@ res_ = dplyr::tibble(variables = uvars,
 		      Method = "u")
 
 plot_ = res_ %>%
-	dplyr::filter(Method == "u") %>%
+	dplyr::filter(Method == "log") %>%
 	dplyr::select(-Method) %>%
 	reshape2::melt() %>%
 	dplyr::mutate(value = -log10(value)) %>%
@@ -288,7 +288,7 @@ plot_ = res_ %>%
 	dplyr::mutate(variable = factor(variable, levels = c("Risk group", "PET response", "De-escalation failure"), ordered = TRUE)) %>%
 	ggplot(aes(x = week, y = variable, fill = value)) +
 	geom_tile(stat = "identity", color = "white", size = .5) +
-	scale_fill_viridis() +
+	scale_fill_viridis(breaks = seq(from = 0, to = 3, by = .75)) +
 	xlab("") +
 	ylab("") +
 	theme_minimal() +
@@ -321,7 +321,7 @@ plot_ = data_ %>%
 	geom_signif(stat = "signif",
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided"),
+		    test.args = list(alternative = "two.sided", exact = FALSE),
 		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
 		    y_position = log10(500)) +
 	theme_classic() +
@@ -352,7 +352,7 @@ plot_ = data_ %>%
 	geom_signif(stat = "signif",
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided"),
+		    test.args = list(alternative = "two.sided", exact = FALSE),
 		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
 		    y_position = log10(7E7)) +
 	theme_classic() +
@@ -383,7 +383,7 @@ plot_ = data_ %>%
 	geom_signif(stat = "signif",
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided"),
+		    test.args = list(alternative = "two.sided", exact = FALSE),
 		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
 		    y_position = log10(3E11)) +
 	theme_classic() +

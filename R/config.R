@@ -140,3 +140,5 @@ target_contigs <- c("HPV-16" = "NC001526.4",
 	
 	return(invisible(gsea))
 }
+
+'margin' <- ggplot2::margin

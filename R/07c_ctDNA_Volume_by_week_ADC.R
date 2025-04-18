@@ -154,14 +154,14 @@ plot_ = smry_pcm %>%
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(limits = c(1E3, 4E4),
+	scale_y_log10(limits = c(1E3, 7E4),
 		      labels = scientific_10) +
 	xlab("ctDNA Fraction (%)") +
 	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(3E4)) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(6E4)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = ggplot2::margin(t = 20)),
-	      axis.title.y = element_text(margin = ggplot2::margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12),
 	      strip.background = element_blank()) +
@@ -185,14 +185,14 @@ plot_ = smry_hpv %>%
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(limits = c(1E3, 4E4),
+	scale_y_log10(limits = c(1E3, 7E4),
 		      labels = scientific_10) +
 	xlab("cfDNA HPV Aligned Read Pairs") +
 	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(1E0), label.y = log10(3E4)) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E0), label.y = log10(6E4)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = ggplot2::margin(t = 20)),
-	      axis.title.y = element_text(margin = ggplot2::margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12),
 	      strip.background = element_blank()) +
@@ -203,7 +203,7 @@ pdf(file = "../res/Correlation_HPV_MRI_Vol_by_week.pdf", width = 13, height = 3.
 print(plot_)
 dev.off()
 
-fit_ctDNA = smry_pcm %>%
+fit_ctdna = smry_pcm %>%
 	    reshape2::melt(variable.name = "week", value.name = "ctDNA") %>%
 	    dplyr::full_join(smry_mri %>%
 			     reshape2::melt(variable.name = "week", value.name = "Volume"),
@@ -212,9 +212,10 @@ fit_ctDNA = smry_pcm %>%
 			     reshape2::melt(variable.name = "week", value.name = "ADC"),
 			     by = c("patient_id_mskcc", "week")) %>%
 	    tidyr::drop_na() %>%
+	    dplyr::mutate(Volume = scale(Volume, center = TRUE, scale = TRUE)) %>%
 	    stats::glm(formula = ctDNA ~ Volume + ADC:week, data = .)
 
-fit_HPV = smry_hpv %>%
+fit_hpv = smry_hpv %>%
 	  reshape2::melt(variable.name = "week", value.name = "HPV") %>%
 	  dplyr::full_join(smry_mri %>%
 			   reshape2::melt(variable.name = "week", value.name = "Volume"),
@@ -222,55 +223,51 @@ fit_HPV = smry_hpv %>%
 	  dplyr::full_join(smry_adc %>%
 			   reshape2::melt(variable.name = "week", value.name = "ADC"),
 			   by = c("patient_id_mskcc", "week")) %>%
-	  tidyr::drop_na() %>%
+	  dplyr::mutate(HPV = scale(HPV, center = TRUE, scale = TRUE)) %>%
+	  dplyr::mutate(Volume = scale(Volume, center = TRUE, scale = TRUE)) %>%
 	  stats::glm(formula = HPV ~ Volume + ADC:week, data = .)
 
-data_ = smry_pcm %>%
-	reshape2::melt(variable.name = "week", value.name = "ctDNA") %>%
-	dplyr::full_join(smry_mri %>%
-			 reshape2::melt(variable.name = "week", value.name = "Volume"),
-			 by = c("patient_id_mskcc", "week")) %>%
-	tidyr::drop_na()
-
-residuals = list()
-weeks = c("Pre-treatment", "wk1", "wk2", "wk3")
-for (i in 1:4) {
-	residuals[[i]] = dplyr::tibble(residuals = data_ %>%
-				       		   dplyr::filter(week == weeks[i]) %>%
-				       		   stats::lm(formula = ctDNA ~ Volume, data = .) %>%
-				       		   .[["residuals"]]) %>%
-			 dplyr::mutate(week = weeks[i]) %>%
-			 dplyr::mutate(patient_id_mskcc = data_ %>%
-				       		   	  dplyr::filter(week == weeks[i]) %>%
-				       			  .[["patient_id_mskcc"]])
-}
-
-plot_ = do.call(rbind, residuals) %>%
-	dplyr::full_join(smry_adc %>%
-			 reshape2::melt(variable.name = "week", value.name = "ADC"),
-			 by = c("patient_id_mskcc", "week")) %>%
-	tidyr::drop_na() %>%
-	ggplot(aes(x = residuals, y = ADC, color = week, shape = week)) +
-	geom_point(stat = "identity", fill = "white", alpha = .75, size = 2) +
-	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
-		    se = FALSE, fullrange = TRUE, color = "goldenrod3", alpha = .15, size = 1.5) +
-	scale_color_brewer(type = "qual", palette = 7) +
-	scale_shape_manual(values = c(21, 22, 23, 24)) +
-	scale_x_continuous(labels = scientific_10) +
-	scale_y_continuous(#limits = c(.6, 1.5),
-			   labels = scientific_10) +
-	xlab(expression("Residual MRI Volume "(mm^3))) +
-	ylab("ADC") +
-	stat_cor(method = "spearman", color = "black", label.x = -2, label.y = 1.5) +
+plot_ = summary(fit_ctdna) %>%
+	.[["coefficients"]] %>%
+	as.data.frame() %>%
+	tibble::rownames_to_column("variable") %>%
+	dplyr::as_tibble() %>%
+	dplyr::filter(variable != "(Intercept)") %>%
+	dplyr::mutate(assay = "PCM") %>%
+	dplyr::mutate(Estimate = Estimate*20) %>%
+	dplyr::bind_rows(summary(fit_hpv) %>%
+			 .[["coefficients"]] %>%
+			 as.data.frame() %>%
+			 tibble::rownames_to_column("variable") %>%
+			 dplyr::as_tibble() %>%
+			 dplyr::filter(variable != "(Intercept)") %>%
+			 dplyr::mutate(assay = "HPV")) %>%
+	dplyr::mutate(is_significant = ifelse(`Pr(>|t|)`<.1, "Yes", "No")) %>%
+	dplyr::mutate(variable = gsub(pattern = "week", replacement = "", x= variable, fixed = TRUE)) %>%
+	dplyr::mutate(variable = gsub(pattern = "wk", replacement = "Week ", x= variable, fixed = TRUE)) %>%
+	dplyr::mutate(variable = factor(variable, levels = rev(unique(variable)), ordered = TRUE)) %>%
+	ggplot(aes(x = variable, ymin = 0, ymax = Estimate, y = Estimate, fill = is_significant, size = -log10(`Pr(>|t|)`))) +
+	geom_linerange(stat = "identity", size = .5) +
+	geom_hline(yintercept = 0, size = 1) +
+	geom_point(stat = "identity", shape = 21) +
+	xlab("") +
+	ylab("") +
+	scale_fill_manual(values = c("#bdbdbd", "#e41a1c")) +
+	scale_size_continuous(breaks = c(1,3,5)) +
+	scale_x_discrete() +
+	scale_y_continuous() +
+	coord_flip() +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = ggplot2::margin(t = 20)),
-	      axis.title.y = element_text(margin = ggplot2::margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12),
-	      strip.background = element_blank()) +
-	facet_wrap(~week, nrow = 1, scales = "free_y") +
-	guides(color = FALSE, shape = FALSE)
+	      strip.background = element_blank(),
+	      panel.spacing = unit(2, "lines")) +
+	guides(fill = guide_legend(title = expression(p<0.1), order = 1),
+	       size = guide_legend(title = expression(-Log[10]~"p-value"), override.aes = list(shape = 21, fill = "black"))) +
+	facet_wrap(~assay, ncol = 2, scales = "free_x")
 
-#pdf(file = "../res/Correlation_MRI_Residuals_Vol_ADC_by_week.pdf", width = 11, height = 3.5)
-#print(plot_)
-#dev.off()
+pdf(file = "../res/Linear_Regression_Coefficients_ADC.pdf", width = 9, height = 3)
+print(plot_)
+dev.off()
