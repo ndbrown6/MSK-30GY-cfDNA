@@ -204,7 +204,6 @@ paramy = rpart::rpart.control(minsplit = 5,
 set.seed(12345)
 Training_Error = list()
 Test_Error = list()
-ROC_Curve = list()
 
 #==================================================
 # Relative HPV

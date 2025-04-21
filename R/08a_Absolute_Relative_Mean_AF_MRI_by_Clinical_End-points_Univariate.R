@@ -174,7 +174,8 @@ p1 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p1[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = composite_end_point ~ log2(value), data = ., family = binomial(link = "probit")) %>%
+		dplyr::mutate(value = log2(value)) %>%
+		stats::glm(formula = composite_end_point ~ value, data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }
@@ -183,7 +184,8 @@ p2 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p2[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = neck_dissection_yes_no ~ log2(value), data = ., family = binomial(link = "probit")) %>%
+		dplyr::mutate(value = log2(value)) %>%
+		stats::glm(formula = neck_dissection_yes_no ~ value, data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }
@@ -192,7 +194,8 @@ p3 = vector(mode = "numeric", length = length(uvars))
 for (i in 1:length(uvars)) {
 	p3[i] = (data_ %>%
 		dplyr::filter(variable == uvars[i]) %>%
-		stats::glm(formula = hypoxia_resolution ~ log2(value), data = ., family = binomial(link = "probit")) %>%
+		dplyr::mutate(value = log2(value)) %>%
+		stats::glm(formula = hypoxia_resolution ~ value, data = ., family = binomial(link = "probit")) %>%
 		summary() %>%
 		.[["coefficients"]])[2,"Pr(>|z|)"]
 }

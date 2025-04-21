@@ -60,6 +60,8 @@ suppressPackageStartupMessages(library("party"))
 suppressPackageStartupMessages(library("partykit"))
 suppressPackageStartupMessages(library("ggparty"))
 suppressPackageStartupMessages(library("randomForest"))
+suppressPackageStartupMessages(library("survival"))
+suppressPackageStartupMessages(library("survminer"))
 
 registerDoMC(8)
 
