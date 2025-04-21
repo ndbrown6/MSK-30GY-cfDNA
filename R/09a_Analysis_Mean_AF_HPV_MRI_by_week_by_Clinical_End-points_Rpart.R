@@ -326,18 +326,20 @@ plot_ = Test_Error %>%
 	scale_x_discrete() +
 	scale_y_continuous(limits = c(NA,100)) +
 	xlab("") +
-	ylab("10-Fold Misclassification Error (%)") +
+	ylab("10-Fold Misclass-\nification Error (%)") +
 	geom_signif(annotation = formatC(p1, digits = 1),
-		    y_position = 75, xmin = 2.3, xmax = 4, 
+		    y_position = 85, xmin = 2.3, xmax = 4, 
 		    tip_length = c(0.03, 0.03), color = "black") +
 	geom_signif(annotation = formatC(p2, digits = 1),
-		    y_position = 85, xmin = 3.3, xmax = 4, 
+		    y_position = 75, xmin = 3.3, xmax = 4, 
 		    tip_length = c(0.03, 0.03), color = "black") +
 	theme_classic() +
-	theme(axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = guide_legend(title = "Relative or\nAbsolute\nvalue?"))
 
-pdf(file = "../res/Decesion_Tree_Misclassification_Error.pdf", width = 4, height = 4.5)
+pdf(file = "../res/Decesion_Tree_Misclassification_Error.pdf", width = 4.25, height = 4.5)
 print(plot_)
 dev.off()
