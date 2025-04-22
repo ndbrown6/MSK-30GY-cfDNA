@@ -10,9 +10,6 @@ manifest = readr::read_tsv(file = url_manifest, col_names = TRUE, col_types = co
 	   dplyr::filter(!is.na(bam_file_name_hpv)) %>%
 	   dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
 
-mrd_smry = readr::read_tsv(file = url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-	   readr::type_convert()
-
 preanalytical_conditions = readr::read_tsv(file = url_preanalytical_conidtions, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 			   readr::type_convert()
 
@@ -107,14 +104,35 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 			TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
 		))
 
+mrd_smry = readr::read_tsv(file = url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+	   readr::type_convert() %>%
+	   dplyr::rename(sample_id_invitae = `Invitae Biospecimen ID`) %>%
+	   dplyr::left_join(manifest, by = "sample_id_invitae") %>%
+	   dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+	   dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+			timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+			TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+	   ))
+
+# ctDNA fraction PCM
 smry_pcm = idx_metrics_ft %>%
 	   dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
-	   dplyr::summarize(mean_af = mean(mean_af+1E-5, na.rm = TRUE)) %>%
+	   dplyr::summarize(mean_af = mean(mean_af, na.rm = TRUE)) %>%
 	   reshape2::dcast(formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
 			   fun.aggregate = function(x) { mean(x, na.rm=TRUE) }, fill = NaN, value.var = "mean_af") %>%
 	   dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
 	   readr::type_convert()
 
+# MRD +/- PCM
+smry_mrd = mrd_smry %>%
+	   dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
+	   dplyr::summarize(landmark_mrd = any(`MRD-Landmark_Result`=="PRESENT")) %>%
+	   reshape2::dcast(formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+			   fun.aggregate = function(x) { any(x) }, fill = NaN, value.var = "landmark_mrd") %>%
+	   dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
+	   readr::type_convert()
+
+# Number Reads HPV
 smry_hpv = idx_metrics_ft %>%
 	   dplyr::filter(chromosome == "HPV-16") %>%
 	   dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
@@ -124,6 +142,16 @@ smry_hpv = idx_metrics_ft %>%
 	   dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
 	   readr::type_convert()
 
+# Posterior Probability +/- HPV
+smry_ppr = posterior_probability %>%
+	   dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
+	   dplyr::summarize(posterior_probability = any(`Is_ctDNA`=="+ve")) %>%
+	   reshape2::dcast(formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+			   fun.aggregate = function(x) { any(x) }, fill = NaN, value.var = "posterior_probability") %>%
+	   dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
+	   readr::type_convert()
+
+# Volume MRI
 smry_mri = clinical %>%
 	   dplyr::select(patient_id_mskcc,
 		        `Pre-treatment` = MRI_rawdata_wk0,
@@ -132,6 +160,7 @@ smry_mri = clinical %>%
 		        `wk3` = MRI_rawdata_wk4) %>%
 	   readr::type_convert()
 
+# ADC MRI
 smry_adc = clinical %>%
 	   dplyr::select(patient_id_mskcc,
 		        `Pre-treatment` = ADC_Mean_wk0,
@@ -141,388 +170,429 @@ smry_adc = clinical %>%
 	   readr::type_convert()
 
 
-#########################
-# Risk group
-#########################
+# ctDNA fraction PCM 30Gy arm
 data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event) %>%
+       dplyr::left_join(smry_pcm,
+		        by = "patient_id_mskcc") %>%
+       tidyr::drop_na() %>%
+       dplyr::mutate(`Pre-treatment` = case_when(
+	       `Pre-treatment` > median(`Pre-treatment`) ~ "high",
+	       `Pre-treatment` <= median(`Pre-treatment`) ~ "low"
+       )) %>%
+       dplyr::mutate(wk1 = case_when(
+	       wk1 > median(wk1) ~ "high",
+	       wk1 <= median(wk1) ~ "low"
+       )) %>%
+       dplyr::mutate(wk2 = case_when(
+	       wk2 > median(wk2) ~ "high",
+	       wk2 <= median(wk2) ~ "low"
+       )) %>%
+       dplyr::mutate(wk3 = case_when(
+	       wk3 > median(wk3) ~ "high",
+	       wk3 <= median(wk3) ~ "low"
+       )) %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event"))
+
+pdf(file = "../res/Survival_ctDNA_30Gy.pdf", width = 4, height = 5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data %>% dplyr::filter(variable == i))
+	p = ggsurvplot(fit = fit,
+		       data = data %>% dplyr::filter(variable == i),
+		       palette = c("#fc8d62", "#8da0cb"),
+		       risk.table = TRUE,
+		       pval = TRUE,
+		       conf.int = FALSE,
+		       xlim = c(0, 48),
+		       xlab = "Time (months)",
+		       ylab = "Survival rate (%)",    
+		       break.time.by = 12,
+		       ggtheme = theme_classic(),
+		       risk.table.y.text.col = TRUE,
+		       risk.table.y.text = FALSE,
+		       tables.theme = theme_void())
+	p$plot = p$plot +
+		 ggtitle(gsub("wk", "Week ", i, fixed = TRUE)) +
+		 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+				    labels = c(0, 20, 40, 60, 80, 100)) +
+		 theme(axis.title.x = element_text(margin = margin(t = 20)),
+		       axis.title.y = element_text(margin = margin(r = 20)),
+		       axis.text.x = element_text(size = 12),
+		       axis.text.y = element_text(size = 12),
+		       plot.title = element_text(hjust = 0.5),
+		       legend.position = "bottom") +
+		guides(color = guide_legend(title = " "))
+
+	if (i=="Pre-treatment") {
+		print(p, newpage = FALSE)
+	} else {
+		print(p, newpage = TRUE)
+	}
+}
+dev.off()
+
+# Landmark MRD ctDNA 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event) %>%
+       dplyr::left_join(smry_mrd,
+		        by = "patient_id_mskcc") %>%
+       tidyr::drop_na() %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event"))
+
+pdf(file = "../res/Survival_Landmark_MRD_30Gy.pdf", width = 4, height = 5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data %>% dplyr::filter(variable == i))
+	p = ggsurvplot(fit = fit,
+		       data = data %>% dplyr::filter(variable == i),
+		       palette = c("#8da0cb", "#fc8d62"),
+		       risk.table = TRUE,
+		       pval = TRUE,
+		       conf.int = FALSE,
+		       xlim = c(0, 48),
+		       xlab = "Time (months)",
+		       ylab = "Survival rate (%)",    
+		       break.time.by = 12,
+		       ggtheme = theme_classic(),
+		       risk.table.y.text.col = TRUE,
+		       risk.table.y.text = FALSE,
+		       tables.theme = theme_void())
+	p$plot = p$plot +
+		 ggtitle(gsub("wk", "Week ", i, fixed = TRUE)) +
+		 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+				    labels = c(0, 20, 40, 60, 80, 100)) +
+		 theme(axis.title.x = element_text(margin = margin(t = 20)),
+		       axis.title.y = element_text(margin = margin(r = 20)),
+		       axis.text.x = element_text(size = 12),
+		       axis.text.y = element_text(size = 12),
+		       plot.title = element_text(hjust = 0.5),
+		       legend.position = "bottom") +
+		guides(color = guide_legend(title = " "))
+
+	if (i=="Pre-treatment") {
+		print(p, newpage = FALSE)
+	} else {
+		print(p, newpage = TRUE)
+	}
+}
+dev.off()
+
+# Number HPV Read pairs 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event) %>%
+       dplyr::left_join(smry_hpv,
+		        by = "patient_id_mskcc") %>%
+       tidyr::drop_na() %>%
+       dplyr::mutate(`Pre-treatment` = case_when(
+	       `Pre-treatment` > median(`Pre-treatment`) ~ "high",
+	       `Pre-treatment` <= median(`Pre-treatment`) ~ "low"
+       )) %>%
+       dplyr::mutate(wk1 = case_when(
+	       wk1 > median(wk1) ~ "high",
+	       wk1 <= median(wk1) ~ "low"
+       )) %>%
+       dplyr::mutate(wk2 = case_when(
+	       wk2 > median(wk2) ~ "high",
+	       wk2 <= median(wk2) ~ "low"
+       )) %>%
+       dplyr::mutate(wk3 = case_when(
+	       wk3 > median(wk3) ~ "high",
+	       wk3 <= median(wk3) ~ "low"
+       )) %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event"))
+
+pdf(file = "../res/Survival_HPV_30Gy.pdf", width = 4, height = 5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data %>% dplyr::filter(variable == i))
+	p = ggsurvplot(fit = fit,
+		       data = data %>% dplyr::filter(variable == i),
+		       palette = c("#fc8d62", "#8da0cb"),
+		       risk.table = TRUE,
+		       pval = TRUE,
+		       conf.int = FALSE,
+		       xlim = c(0, 48),
+		       xlab = "Time (months)",
+		       ylab = "Survival rate (%)",    
+		       break.time.by = 12,
+		       ggtheme = theme_classic(),
+		       risk.table.y.text.col = TRUE,
+		       risk.table.y.text = FALSE,
+		       tables.theme = theme_void())
+	p$plot = p$plot +
+		 ggtitle(gsub("wk", "Week ", i, fixed = TRUE)) +
+		 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+				    labels = c(0, 20, 40, 60, 80, 100)) +
+		 theme(axis.title.x = element_text(margin = margin(t = 20)),
+		       axis.title.y = element_text(margin = margin(r = 20)),
+		       axis.text.x = element_text(size = 12),
+		       axis.text.y = element_text(size = 12),
+		       plot.title = element_text(hjust = 0.5),
+		       legend.position = "bottom") +
+		guides(color = guide_legend(title = " "))
+
+	if (i=="Pre-treatment") {
+		print(p, newpage = FALSE)
+	} else {
+		print(p, newpage = TRUE)
+	}
+}
+dev.off()
+
+# Posterior Probability HPV Read pairs 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event) %>%
+       dplyr::left_join(smry_ppr,
+		        by = "patient_id_mskcc") %>%
+       tidyr::drop_na() %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event"))
+
+pdf(file = "../res/Survival_Posterior_Probability_HPV_30Gy.pdf", width = 4, height = 5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data %>% dplyr::filter(variable == i))
+	p = ggsurvplot(fit = fit,
+		       data = data %>% dplyr::filter(variable == i),
+		       palette = c("#8da0cb", "#fc8d62"),
+		       risk.table = TRUE,
+		       pval = TRUE,
+		       conf.int = FALSE,
+		       xlim = c(0, 48),
+		       xlab = "Time (months)",
+		       ylab = "Survival rate (%)",    
+		       break.time.by = 12,
+		       ggtheme = theme_classic(),
+		       risk.table.y.text.col = TRUE,
+		       risk.table.y.text = FALSE,
+		       tables.theme = theme_void())
+	p$plot = p$plot +
+		 ggtitle(gsub("wk", "Week ", i, fixed = TRUE)) +
+		 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+				    labels = c(0, 20, 40, 60, 80, 100)) +
+		 theme(axis.title.x = element_text(margin = margin(t = 20)),
+		       axis.title.y = element_text(margin = margin(r = 20)),
+		       axis.text.x = element_text(size = 12),
+		       axis.text.y = element_text(size = 12),
+		       plot.title = element_text(hjust = 0.5),
+		       legend.position = "bottom") +
+		guides(color = guide_legend(title = " "))
+
+	if (i=="Pre-treatment") {
+		print(p, newpage = FALSE)
+	} else {
+		print(p, newpage = TRUE)
+	}
+}
+dev.off()
+
+# MRI Volume 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event) %>%
+       dplyr::left_join(smry_mri,
+		        by = "patient_id_mskcc") %>%
+       tidyr::drop_na() %>%
+       dplyr::mutate(`Pre-treatment` = case_when(
+	       `Pre-treatment` > median(`Pre-treatment`) ~ "high",
+	       `Pre-treatment` <= median(`Pre-treatment`) ~ "low"
+       )) %>%
+       dplyr::mutate(wk1 = case_when(
+	       wk1 > median(wk1) ~ "high",
+	       wk1 <= median(wk1) ~ "low"
+       )) %>%
+       dplyr::mutate(wk2 = case_when(
+	       wk2 > median(wk2) ~ "high",
+	       wk2 <= median(wk2) ~ "low"
+       )) %>%
+       dplyr::mutate(wk3 = case_when(
+	       wk3 > median(wk3) ~ "high",
+	       wk3 <= median(wk3) ~ "low"
+       )) %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event"))
+
+pdf(file = "../res/Survival_Volume_30Gy.pdf", width = 4, height = 5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data %>% dplyr::filter(variable == i))
+	p = ggsurvplot(fit = fit,
+		       data = data %>% dplyr::filter(variable == i),
+		       palette = c("#fc8d62", "#8da0cb"),
+		       risk.table = TRUE,
+		       pval = TRUE,
+		       conf.int = FALSE,
+		       xlim = c(0, 48),
+		       xlab = "Time (months)",
+		       ylab = "Survival rate (%)",    
+		       break.time.by = 12,
+		       ggtheme = theme_classic(),
+		       risk.table.y.text.col = TRUE,
+		       risk.table.y.text = FALSE,
+		       tables.theme = theme_void())
+	p$plot = p$plot +
+		 ggtitle(gsub("wk", "Week ", i, fixed = TRUE)) +
+		 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+				    labels = c(0, 20, 40, 60, 80, 100)) +
+		 theme(axis.title.x = element_text(margin = margin(t = 20)),
+		       axis.title.y = element_text(margin = margin(r = 20)),
+		       axis.text.x = element_text(size = 12),
+		       axis.text.y = element_text(size = 12),
+		       plot.title = element_text(hjust = 0.5),
+		       legend.position = "bottom") +
+		guides(color = guide_legend(title = " "))
+
+	if (i=="Pre-treatment") {
+		print(p, newpage = FALSE)
+	} else {
+		print(p, newpage = TRUE)
+	}
+}
+dev.off()
+
+# ctDNA fraction PCM & MRI Volume 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
        dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::mutate(composite_end_point = case_when(
-	       composite_end_point ~ "high",
-	       !composite_end_point ~ "low"
+       dplyr::left_join(smry_pcm,
+			by = "patient_id_mskcc") %>%
+       dplyr::left_join(smry_mri,
+			by = c("patient_id_mskcc")) %>%
+       dplyr::mutate(`Pre-treatment.x` = case_when(
+	       `Pre-treatment.x` > median(`Pre-treatment.x`, na.rm=TRUE) ~ "high",
+	       `Pre-treatment.x` <= median(`Pre-treatment.x`, na.rm=TRUE) ~ "low"
        )) %>%
-       dplyr::rename(risk_group = composite_end_point)
-fit = survfit(Surv(pfs_time, pfs_event) ~ risk_group, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
+       dplyr::mutate(wk1.x = case_when(
+	       wk1.x > median(wk1.x, na.rm=TRUE) ~ "high",
+	       wk1.x <= median(wk1.x, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(wk2.x = case_when(
+	       wk2.x > median(wk2.x, na.rm=TRUE) ~ "high",
+	       wk2.x <= median(wk2.x, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(wk3.x = case_when(
+	       wk3.x > median(wk3.x, na.rm=TRUE) ~ "high",
+	       wk3.x <= median(wk3.x, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(`Pre-treatment.y` = case_when(
+	       `Pre-treatment.y` > median(`Pre-treatment.y`, na.rm=TRUE) ~ "high",
+	       `Pre-treatment.y` <= median(`Pre-treatment.y`, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(wk1.y = case_when(
+	       wk1.y > median(wk1.y, na.rm=TRUE) ~ "high",
+	       wk1.y <= median(wk1.y, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(wk2.y = case_when(
+	       wk2.y > median(wk2.y, na.rm=TRUE) ~ "high",
+	       wk2.y <= median(wk2.y, na.rm=TRUE) ~ "low"
+       )) %>%
+       dplyr::mutate(wk3.y = case_when(
+	       wk3.y > median(wk3.y, na.rm=TRUE) ~ "high",
+	       wk3.y <= median(wk3.y, na.rm=TRUE) ~ "low"
+       )) %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event", "composite_end_point")) %>%
+       dplyr::mutate(assay = case_when(
+	       grepl(".x", variable, fixed = TRUE) ~ "ctDNA",
+	       grepl(".y", variable, fixed = TRUE) ~ "Vol"
+       )) %>%
+       dplyr::mutate(variable = gsub(pattern = ".x", "", variable, fixed = TRUE)) %>%
+       dplyr::mutate(variable = gsub(pattern = ".y", "", variable, fixed = TRUE)) %>%
+       tidyr::drop_na()
 
-pdf(file = "~/Desktop/Risk_group_30Gy_70Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
+ii = 1
+pdf(file = "../res/Survival_ctDNA_Volume_30Gy.pdf", width = 4, height = 5.5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	for (j in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+		tmp = data %>%
+		      dplyr::filter((variable == i & assay == "ctDNA") |
+				    (variable == j & assay == "Vol")) %>%
+		      reshape2::dcast(patient_id_mskcc + pfs_time + pfs_event ~ assay, value.var = "value") %>%
+		      tidyr::drop_na() %>%
+		      dplyr::mutate(value = case_when(
+			      Vol == "high" & ctDNA == "high" ~ "high",
+			      TRUE ~ "low"
+		      ))
+		fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = tmp)
+		p = ggsurvplot(fit = fit,
+			       data = tmp,
+			       palette = c("#fc8d62", "#8da0cb"),
+			       risk.table = TRUE,
+			       pval = TRUE,
+			       conf.int = FALSE,
+			       xlim = c(0, 48),
+			       xlab = "Time (months)",
+			       ylab = "Survival rate (%)",    
+			       break.time.by = 12,
+			       ggtheme = theme_classic(),
+			       risk.table.y.text.col = TRUE,
+			       risk.table.y.text = FALSE,
+			       tables.theme = theme_void())
+		p$plot = p$plot +
+			 ggtitle(paste0(gsub("wk", "Week ", i, fixed = T), " ctDNA\n", gsub("wk", "Week ", j, fixed = T), " Vol")) +
+			 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+					    labels = c(0, 20, 40, 60, 80, 100)) +
+			 theme(axis.title.x = element_text(margin = margin(t = 20)),
+			       axis.title.y = element_text(margin = margin(r = 20)),
+			       axis.text.x = element_text(size = 12),
+			       axis.text.y = element_text(size = 12),
+			       plot.title = element_text(hjust = 0.5, size = 10),
+			       legend.position = "bottom") +
+			 guides(color = guide_legend(title = " "))
+
+		if (ii==1) {
+			print(p, newpage = FALSE)
+		} else {
+			print(p, newpage = TRUE)
+		}
+		ii = ii + 1
+	}
+}
 dev.off()
 
-#########################
-# Risk group +
-# 30Gy
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::mutate(composite_end_point = case_when(
-	       composite_end_point ~ "high",
-	       !composite_end_point ~ "low"
-       )) %>%
-       dplyr::rename(risk_group = composite_end_point) %>%
-       dplyr::filter(crt_randomization == "30Gy")
+ii = 1
+pdf(file = "../res/Survival_ctDNA_Volume_Risk_group_30Gy.pdf", width = 4, height = 5.5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	for (j in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+		tmp = data %>%
+		      dplyr::filter((variable == i & assay == "ctDNA") |
+				    (variable == j & assay == "Vol")) %>%
+		      reshape2::dcast(patient_id_mskcc + pfs_time + pfs_event + composite_end_point ~ assay, value.var = "value") %>%
+		      tidyr::drop_na() %>%
+		      dplyr::mutate(value = case_when(
+			      Vol == "high" & ctDNA == "high" & composite_end_point ~ "high",
+			      TRUE ~ "low"
+		      ))
+		fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = tmp)
+		p = ggsurvplot(fit = fit,
+			       data = tmp,
+			       palette = c("#fc8d62", "#8da0cb"),
+			       risk.table = TRUE,
+			       pval = TRUE,
+			       conf.int = FALSE,
+			       xlim = c(0, 48),
+			       xlab = "Time (months)",
+			       ylab = "Survival rate (%)",    
+			       break.time.by = 12,
+			       ggtheme = theme_classic(),
+			       risk.table.y.text.col = TRUE,
+			       risk.table.y.text = FALSE,
+			       tables.theme = theme_void())
+		p$plot = p$plot +
+			 ggtitle(paste0(gsub("wk", "Week ", i, fixed = T), " ctDNA\n", gsub("wk", "Week ", j, fixed = T), " Vol")) +
+			 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+					    labels = c(0, 20, 40, 60, 80, 100)) +
+			 theme(axis.title.x = element_text(margin = margin(t = 20)),
+			       axis.title.y = element_text(margin = margin(r = 20)),
+			       axis.text.x = element_text(size = 12),
+			       axis.text.y = element_text(size = 12),
+			       plot.title = element_text(hjust = 0.5, size = 10),
+			       legend.position = "bottom") +
+			 guides(color = guide_legend(title = " "))
 
-fit = survfit(Surv(pfs_time, pfs_event) ~ risk_group, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/Risk_group_30Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
-dev.off()
-
-#########################
-# Week 2 PCM ctDNA + 
-# 30Gy arm
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::filter(crt_randomization == "30Gy") %>%
-       dplyr::mutate(AF = case_when(
-	       AF > median(AF) ~ "high",
-	       AF <= median(AF) ~ "low"
-       )) %>%
-       dplyr::rename(ctDNA = AF)
-
-fit = survfit(Surv(pfs_time, pfs_event) ~ ctDNA, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/Week2_ctDNA_30Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
-dev.off()
-
-#########################
-# Week 3 MRI Volume +
-# 30Gy arm
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::filter(crt_randomization == "30Gy") %>%
-       dplyr::mutate(MRI = case_when(
-	       MRI > median(MRI) ~ "high",
-	       MRI <= median(MRI) ~ "low"
-       )) %>%
-       dplyr::rename(Volume = MRI)
-
-fit = survfit(Surv(pfs_time, pfs_event) ~ Volume, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/Week3_Volume_30Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
-dev.off()
-
-#########################
-# Week 2 PCM ctDNA +
-# Week 3 MRI Volume +
-# 30Gy arm
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::filter(crt_randomization == "30Gy") %>%
-       dplyr::mutate(AF = case_when(
-	       AF > median(AF) ~ "high",
-	       AF <= median(AF) ~ "low"
-       )) %>%
-       dplyr::mutate(MRI = case_when(
-	       MRI > median(MRI) ~ "high",
-	       MRI <= median(MRI) ~ "low"
-       )) %>%
-       dplyr::mutate(ctDNA_Volume = case_when(
-	       AF=="high" & MRI=="high" ~ "High ctDNA & High Volume",
-	       TRUE ~ "Other patients"
-       ))
-
-fit = survfit(Surv(pfs_time, pfs_event) ~ ctDNA_Volume, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/Week2_ctDNA_Week3_Volume_30Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
-dev.off()
-
-#########################
-# Week 2 PCM ctDNA +
-# Week 3 MRI Volume +
-# Risk group
-# 30Gy arm
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::filter(crt_randomization == "30Gy") %>%
-       dplyr::mutate(AF = case_when(
-	       AF > median(AF) ~ "high",
-	       AF <= median(AF) ~ "low"
-       )) %>%
-       dplyr::mutate(MRI = case_when(
-	       MRI > median(MRI) ~ "high",
-	       MRI <= median(MRI) ~ "low"
-       )) %>%
-       dplyr::mutate(composite_end_point = case_when(
-	       composite_end_point ~ "high",
-	       !composite_end_point ~ "low"
-       )) %>%
-       dplyr::mutate(ctDNA_Volume_Risk = case_when(
-	       AF=="high" & MRI=="high" & composite_end_point=="high"~ "High ctDNA, High Volume, High risk",
-	       TRUE ~ "Other patients"
-       ))
-       
-fit = survfit(Surv(pfs_time, pfs_event) ~ ctDNA_Volume_Risk, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/ctDNA_Volume_Risk_group_30Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
-dev.off()
-
-#########################
-# Week 2 PCM ctDNA +
-# Week 3 MRI Volume +
-# Risk group
-#########################
-data = clinical %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point, crt_randomization) %>%
-       dplyr::full_join(smry_pcm %>%
-		        dplyr::select(patient_id_mskcc, AF = wk2),
-		        by = "patient_id_mskcc") %>%
-       dplyr::full_join(smry_mri %>%
-		        dplyr::select(patient_id_mskcc, MRI = wk3),
-		        by = "patient_id_mskcc") %>%
-       tidyr::drop_na() %>%
-       dplyr::mutate(AF = case_when(
-	       AF > median(AF) ~ "high",
-	       AF <= median(AF) ~ "low"
-       )) %>%
-       dplyr::mutate(MRI = case_when(
-	       MRI > median(MRI) ~ "high",
-	       MRI <= median(MRI) ~ "low"
-       )) %>%
-       dplyr::mutate(composite_end_point = case_when(
-	       composite_end_point ~ "high",
-	       !composite_end_point ~ "low"
-       )) %>%
-       dplyr::mutate(ctDNA_Volume_Risk = case_when(
-	       AF=="high" & MRI=="high" & composite_end_point=="high"~ "High ctDNA, High Volume, High risk",
-	       TRUE ~ "Other patients"
-       ))
-       
-fit = survfit(Surv(pfs_time, pfs_event) ~ ctDNA_Volume_Risk, data = data)
-p = ggsurvplot(fit = fit,
-	       data = data,
-	       palette = c("#fc8d62", "#8da0cb"),
-	       risk.table = TRUE,
-	       pval = TRUE,
-	       conf.int = FALSE,
-	       xlim = c(0, 48),
-	       xlab = "Time (months)",
-	       ylab = "Survival rate (%)",    
-	       break.time.by = 10,
-	       ggtheme = theme_classic(),
-	       risk.table.y.text.col = TRUE,
-	       risk.table.y.text = FALSE,
-	       tables.theme = theme_void()
-)
-p$plot = p$plot +
-	 scale_x_continuous(breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48),
-			    labels = c(0, "", 12, "", 24, "", 36, "", 48)) +
-	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
-			    labels = c(0, 20, 40, 60, 80, 100)) +
-	 theme(axis.title.x = element_text(margin = margin(t = 20)),
-	       axis.title.y = element_text(margin = margin(r = 20)),
-	       axis.text.x = element_text(size = 12),
-	       axis.text.y = element_text(size = 12)) +
-	guides(color = guide_legend(title = " "))
-
-pdf(file = "~/Desktop/ctDNA_Volume_Risk_group_30Gy_70Gy.pdf", width = 5, height = 6)
-print(p, newpage = FALSE)
+		if (ii==1) {
+			print(p, newpage = FALSE)
+		} else {
+			print(p, newpage = TRUE)
+		}
+		ii = ii + 1
+	}
+}
 dev.off()
