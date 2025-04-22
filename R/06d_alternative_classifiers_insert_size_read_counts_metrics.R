@@ -335,9 +335,9 @@ plot_ = dplyr::tibble(
 			 q2 = mean(mce),
 			 q3 = ifelse(max(mce)>10, 10, max(mce))) %>%
 	ggplot(aes(x = classifier, ymin = q1+1E-1, y = q2+1E-1, ymax=q3+1E-1)) +
-	geom_pointrange(stat = "identity", shape = 21, color = "#66c2a5", fill = "white", size = .75) +
+	geom_pointrange(stat = "identity", shape = 21, color = "black", fill = "black", size = .35) +
 	scale_x_discrete() +
-	scale_y_log10(limits = c(.9E-1, 15),
+	scale_y_log10(limits = c(.9E-1, 25),
 		      breaks = c(.1, 0.3333333-.01, 1-.1, 3.3333333-.01, 10-.1),
 		      labels = c(0, .3, 1, 3, 10)) +
 	xlab("") +
