@@ -323,9 +323,9 @@ x5 = nb_cv(data = training_, n = 50, f = 5)
 x6 = rpart_cv(data = training_, n = 50, f = 5)
 
 plot_ = dplyr::tibble(
-		`Linear Discriminant\nAnalysis` = x1,
+		`Linear\nDiscriminant\nAnalysis` = x1,
 		`Support Vector\nMachines` = x3,
-		`Quadratic Discriminant\nAnalysis` = x2,
+		`Quadratic\nDiscriminant\nAnalysis` = x2,
 		`Neural\nNetwork` = x4,
 		`Decision\ntree` = x6
 	) %>%
@@ -345,11 +345,10 @@ plot_ = dplyr::tibble(
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
+	      axis.text.x = element_text(size = 9, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = FALSE)
 
-pdf(file = "../res/Number_Read_Pairs_by_Insert_Size_Compare_Classifiers_Training_Set_HPV-16_Positive.pdf", width = 3, height = 4)
+pdf(file = "../res/Number_Read_Pairs_by_Insert_Size_Compare_Classifiers_Training_Set_HPV-16_Positive.pdf", width = 3.25, height = 3.25)
 print(plot_)
 dev.off()
-

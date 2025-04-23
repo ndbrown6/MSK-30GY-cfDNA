@@ -169,6 +169,87 @@ smry_adc = clinical %>%
 		        `wk3` = ADC_Mean_wk4) %>%
 	   readr::type_convert()
 
+# Risk group 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point) %>%
+       tidyr::drop_na() %>%
+       dplyr::mutate(value = case_when(
+	       composite_end_point ~ 1,
+	       TRUE ~ 0
+       ))
+
+fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data)
+p = ggsurvplot(fit = fit,
+	       data = data,
+	       palette = c("#8da0cb", "#fc8d62"),
+	       risk.table = TRUE,
+	       pval = TRUE,
+	       conf.int = FALSE,
+	       xlim = c(0, 48),
+	       xlab = "Time (months)",
+	       ylab = "Survival rate (%)",    
+	       break.time.by = 12,
+	       ggtheme = theme_classic(),
+	       risk.table.y.text.col = TRUE,
+	       risk.table.y.text = FALSE,
+	       tables.theme = theme_void())
+p$plot = p$plot +
+	 ggtitle("Risk group") +
+	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+			    labels = c(0, 20, 40, 60, 80, 100)) +
+	 theme(axis.title.x = element_text(margin = margin(t = 20)),
+	       axis.title.y = element_text(margin = margin(r = 20)),
+	       axis.text.x = element_text(size = 12),
+	       axis.text.y = element_text(size = 12),
+	       plot.title = element_text(hjust = 0.5),
+	       legend.position = "bottom") +
+	 guides(color = guide_legend(title = " "))
+
+pdf(file = "../res/Survival_Risk_Group_30Gy.pdf", width = 4, height = 5)
+print(p, newpage = FALSE)
+dev.off()
+
+# Simplified Hypoxia Response 30Gy arm
+data = clinical %>%
+       dplyr::filter(crt_randomization == "30Gy") %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, simplified_hypoxia_group) %>%
+       tidyr::drop_na() %>%
+       dplyr::mutate(value = case_when(
+	       simplified_hypoxia_group=="converted" ~ 1,
+	       TRUE ~ 0
+       ))
+
+fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = data)
+p = ggsurvplot(fit = fit,
+	       data = data,
+	       palette = c("#8da0cb", "#fc8d62"),
+	       risk.table = TRUE,
+	       pval = TRUE,
+	       conf.int = FALSE,
+	       xlim = c(0, 48),
+	       xlab = "Time (months)",
+	       ylab = "Survival rate (%)",    
+	       break.time.by = 12,
+	       ggtheme = theme_classic(),
+	       risk.table.y.text.col = TRUE,
+	       risk.table.y.text = FALSE,
+	       tables.theme = theme_void())
+p$plot = p$plot +
+	 ggtitle("Hypoxia") +
+	 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+			    labels = c(0, 20, 40, 60, 80, 100)) +
+	 theme(axis.title.x = element_text(margin = margin(t = 20)),
+	       axis.title.y = element_text(margin = margin(r = 20)),
+	       axis.text.x = element_text(size = 12),
+	       axis.text.y = element_text(size = 12),
+	       plot.title = element_text(hjust = 0.5),
+	       legend.position = "bottom") +
+	 guides(color = guide_legend(title = " "))
+
+pdf(file = "../res/Survival_Simplified_Hypoxia_30Gy.pdf", width = 4, height = 5)
+print(p, newpage = FALSE)
+dev.off()
 
 # ctDNA fraction PCM 30Gy arm
 data = clinical %>%
@@ -451,7 +532,7 @@ dev.off()
 # ctDNA fraction PCM & MRI Volume 30Gy arm
 data = clinical %>%
        dplyr::filter(crt_randomization == "30Gy") %>%
-       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point) %>%
+       dplyr::select(patient_id_mskcc, pfs_time, pfs_event, composite_end_point, simplified_hypoxia_group) %>%
        dplyr::left_join(smry_pcm,
 			by = "patient_id_mskcc") %>%
        dplyr::left_join(smry_mri,
@@ -488,7 +569,7 @@ data = clinical %>%
 	       wk3.y > median(wk3.y, na.rm=TRUE) ~ "high",
 	       wk3.y <= median(wk3.y, na.rm=TRUE) ~ "low"
        )) %>%
-       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event", "composite_end_point")) %>%
+       reshape2::melt(id.vars = c("patient_id_mskcc", "pfs_time", "pfs_event", "composite_end_point", "simplified_hypoxia_group")) %>%
        dplyr::mutate(assay = case_when(
 	       grepl(".x", variable, fixed = TRUE) ~ "ctDNA",
 	       grepl(".y", variable, fixed = TRUE) ~ "Vol"
@@ -548,7 +629,7 @@ for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
 dev.off()
 
 ii = 1
-pdf(file = "../res/Survival_ctDNA_Volume_Risk_group_30Gy.pdf", width = 4, height = 5.5)
+pdf(file = "../res/Survival_ctDNA_Volume_Risk_Group_30Gy.pdf", width = 4, height = 5.5)
 for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
 	for (j in c("Pre-treatment", "wk1", "wk2", "wk3")) {
 		tmp = data %>%
@@ -558,6 +639,56 @@ for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
 		      tidyr::drop_na() %>%
 		      dplyr::mutate(value = case_when(
 			      Vol == "high" & ctDNA == "high" & composite_end_point ~ "high",
+			      TRUE ~ "low"
+		      ))
+		fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = tmp)
+		p = ggsurvplot(fit = fit,
+			       data = tmp,
+			       palette = c("#fc8d62", "#8da0cb"),
+			       risk.table = TRUE,
+			       pval = TRUE,
+			       conf.int = FALSE,
+			       xlim = c(0, 48),
+			       xlab = "Time (months)",
+			       ylab = "Survival rate (%)",    
+			       break.time.by = 12,
+			       ggtheme = theme_classic(),
+			       risk.table.y.text.col = TRUE,
+			       risk.table.y.text = FALSE,
+			       tables.theme = theme_void())
+		p$plot = p$plot +
+			 ggtitle(paste0(gsub("wk", "Week ", i, fixed = T), " ctDNA\n", gsub("wk", "Week ", j, fixed = T), " Vol")) +
+			 scale_y_continuous(breaks = c(0, .2, .4, .6, .8, 1),
+					    labels = c(0, 20, 40, 60, 80, 100)) +
+			 theme(axis.title.x = element_text(margin = margin(t = 20)),
+			       axis.title.y = element_text(margin = margin(r = 20)),
+			       axis.text.x = element_text(size = 12),
+			       axis.text.y = element_text(size = 12),
+			       plot.title = element_text(hjust = 0.5, size = 10),
+			       legend.position = "bottom") +
+			 guides(color = guide_legend(title = " "))
+
+		if (ii==1) {
+			print(p, newpage = FALSE)
+		} else {
+			print(p, newpage = TRUE)
+		}
+		ii = ii + 1
+	}
+}
+dev.off()
+
+ii = 1
+pdf(file = "../res/Survival_ctDNA_Volume_Siplified_Hypoxia_30Gy.pdf", width = 4, height = 5.5)
+for (i in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+	for (j in c("Pre-treatment", "wk1", "wk2", "wk3")) {
+		tmp = data %>%
+		      dplyr::filter((variable == i & assay == "ctDNA") |
+				    (variable == j & assay == "Vol")) %>%
+		      reshape2::dcast(patient_id_mskcc + pfs_time + pfs_event + simplified_hypoxia_group ~ assay, value.var = "value") %>%
+		      tidyr::drop_na() %>%
+		      dplyr::mutate(value = case_when(
+			      Vol == "high" & ctDNA == "high" & simplified_hypoxia_group == "converted" ~ "high",
 			      TRUE ~ "low"
 		      ))
 		fit = survfit(Surv(pfs_time, pfs_event) ~ value, data = tmp)
