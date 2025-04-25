@@ -143,14 +143,50 @@ smry_adc = clinical %>%
 
 plot_ = smry_pcm %>%
 	reshape2::melt(variable.name = "week", value.name = "AF") %>%
+	dplyr::full_join(smry_hpv %>%
+			 reshape2::melt(variable.name = "week", value.name = "HPV"),
+			 by = c("patient_id_mskcc", "week")) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(week != "Pre-treatment") %>%
+	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
+	ggplot(aes(x = AF, y = HPV, shape = week, color = week)) +
+	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
+	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
+		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_shape_manual(values = c(21, 22, 23, 24)) +
+	scale_x_log10(labels = scientific_10) +
+	scale_y_log10(limits = c(1E0, 1E7),
+		      breaks = c(1E0, 1E2, 1E4, 1E6),
+		      labels = scientific_10) +
+	xlab("ctDNA Fraction (%)") +
+	ylab("cfDNA HPV Aligned Read Pairs") +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(5E6)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
+	      strip.background = element_blank()) +
+	facet_wrap(~week, nrow = 1, scales = "free_y") +
+	guides(color = FALSE, shape = FALSE)
+
+pdf(file = "../res/Correlation_AF_HPV_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
+print(plot_)
+dev.off()
+
+plot_ = smry_pcm %>%
+	reshape2::melt(variable.name = "week", value.name = "AF") %>%
 	dplyr::full_join(smry_mri %>%
 			 reshape2::melt(variable.name = "week", value.name = "MRI"),
 			 by = c("patient_id_mskcc", "week")) %>%
 	tidyr::drop_na() %>%
+	dplyr::filter(week != "Pre-treatment") %>%
+	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
 	ggplot(aes(x = AF, y = MRI, shape = week, color = week)) +
-	geom_point(stat = "identity", fill = "white", alpha = .75, size = 2) +
+	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
-		    se = FALSE, fullrange = TRUE, color = "goldenrod3", alpha = .15, size = 1.5) +
+		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(labels = scientific_10) +
@@ -162,13 +198,13 @@ plot_ = smry_pcm %>%
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
 	      strip.background = element_blank()) +
 	facet_wrap(~week, nrow = 1, scales = "free_y") +
 	guides(color = FALSE, shape = FALSE)
 
-pdf(file = "../res/Correlation_AF_MRI_Vol_by_week.pdf", width = 13, height = 3.5)
+pdf(file = "../res/Correlation_AF_MRI_Vol_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
 print(plot_)
 dev.off()
 
@@ -178,18 +214,21 @@ plot_ = smry_hpv %>%
 			 reshape2::melt(variable.name = "week", value.name = "MRI"),
 			 by = c("patient_id_mskcc", "week")) %>%
 	tidyr::drop_na() %>%
+	dplyr::filter(week != "Pre-treatment") %>%
+	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
 	ggplot(aes(x = HPV, y = MRI, shape = week, color = week)) +
-	geom_point(stat = "identity", fill = "white", alpha = .75, size = 2) +
+	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
-		    se = FALSE, fullrange = TRUE, color = "goldenrod3", alpha = .15, size = 1.5) +
+		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
-	scale_x_log10(labels = scientific_10) +
+	scale_x_log10(limits = c(1E1, 1E7),
+		      labels = scientific_10) +
 	scale_y_log10(limits = c(1E3, 7E4),
 		      labels = scientific_10) +
 	xlab("cfDNA HPV Aligned Read Pairs") +
 	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(1E0), label.y = log10(6E4)) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E1), label.y = log10(6E4)) +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
 	      axis.title.y = element_text(margin = margin(r = 20)),
@@ -199,7 +238,40 @@ plot_ = smry_hpv %>%
 	facet_wrap(~week, nrow = 1, scales = "free_y") +
 	guides(color = FALSE, shape = FALSE)
 
-pdf(file = "../res/Correlation_HPV_MRI_Vol_by_week.pdf", width = 13, height = 3.5)
+pdf(file = "../res/Correlation_HPV_MRI_Vol_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
+print(plot_)
+dev.off()
+
+plot_ = smry_adc %>%
+	reshape2::melt(variable.name = "week", value.name = "ADC") %>%
+	dplyr::full_join(smry_mri %>%
+			 reshape2::melt(variable.name = "week", value.name = "MRI"),
+			 by = c("patient_id_mskcc", "week")) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(week != "Pre-treatment") %>%
+	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
+	ggplot(aes(x = ADC, y = MRI, shape = week, color = week)) +
+	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
+	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
+		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_shape_manual(values = c(21, 22, 23, 24)) +
+	scale_x_log10(limits = c(0.5, 2.5)) +
+	scale_y_log10(limits = c(1E3, 7E4),
+		      labels = scientific_10) +
+	xlab("ADC") +
+	ylab(expression("MRI Volume "(mm^3))) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(0.55), label.y = log10(6E4)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      strip.background = element_blank()) +
+	facet_wrap(~week, nrow = 1, scales = "free_y") +
+	guides(color = FALSE, shape = FALSE)
+
+pdf(file = "../res/Correlation_ADC_MRI_Vol_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
 print(plot_)
 dev.off()
 
