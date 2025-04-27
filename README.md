@@ -5,4 +5,4 @@
 &nbsp;
 &nbsp;
 
-![Front page](https://github.com/ndbrown6/MSK-30GY-cfDNA/blob/master/etc/splash.png)
+![Front page](https://github.com/ndbrown6/MSK-30GY-cfDNA/blob/main/etc/splash.png)
