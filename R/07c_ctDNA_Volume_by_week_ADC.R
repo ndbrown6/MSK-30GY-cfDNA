@@ -163,8 +163,8 @@ plot_ = smry_pcm %>%
 	ylab("cfDNA HPV Aligned Read Pairs") +
 	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(5E6)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 10),
 	      axis.text.y = element_text(size = 10),
 	      strip.background = element_blank()) +
@@ -183,21 +183,21 @@ plot_ = smry_pcm %>%
 	tidyr::drop_na() %>%
 	dplyr::filter(week != "Pre-treatment") %>%
 	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
-	ggplot(aes(x = AF, y = MRI, shape = week, color = week)) +
+	ggplot(aes(x = AF, y = MRI/1000, shape = week, color = week)) +
 	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
 		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(labels = scientific_10) +
-	scale_y_log10(limits = c(1E3, 7E4),
+	scale_y_log10(limits = c(1E3, 7E4)/1000,
 		      labels = scientific_10) +
 	xlab("ctDNA Fraction (%)") +
-	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(6E4)) +
+	ylab(expression("MRI Volume "(cm^3))) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(6E4/1000)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 10),
 	      axis.text.y = element_text(size = 10),
 	      strip.background = element_blank()) +
@@ -205,6 +205,39 @@ plot_ = smry_pcm %>%
 	guides(color = FALSE, shape = FALSE)
 
 pdf(file = "../res/Correlation_AF_MRI_Vol_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
+print(plot_)
+dev.off()
+
+plot_ = smry_pcm %>%
+	reshape2::melt(variable.name = "week", value.name = "AF") %>%
+	dplyr::full_join(smry_adc %>%
+			 reshape2::melt(variable.name = "week", value.name = "ADC"),
+			 by = c("patient_id_mskcc", "week")) %>%
+	tidyr::drop_na() %>%
+	dplyr::filter(week != "Pre-treatment") %>%
+	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
+	ggplot(aes(x = AF, y = ADC, shape = week, color = week)) +
+	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
+	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
+		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_shape_manual(values = c(21, 22, 23, 24)) +
+	scale_x_log10(labels = scientific_10) +
+	scale_y_log10(limits = c(0.5, 2.5),
+		      labels = scientific_10) +
+	xlab("ctDNA Fraction (%)") +
+	ylab(expression("ADC ("%.%10^-3~mm^2~sec^-1~")")) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E-5), label.y = log10(2.5)) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
+	      strip.background = element_blank()) +
+	facet_wrap(~week, nrow = 1, scales = "free_y") +
+	guides(color = FALSE, shape = FALSE)
+
+pdf(file = "../res/Correlation_AF_ADC_Vol_by_week.pdf", width = 3*2.75, height = 2.95*1.0)
 print(plot_)
 dev.off()
 
@@ -216,7 +249,7 @@ plot_ = smry_hpv %>%
 	tidyr::drop_na() %>%
 	dplyr::filter(week != "Pre-treatment") %>%
 	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
-	ggplot(aes(x = HPV, y = MRI, shape = week, color = week)) +
+	ggplot(aes(x = HPV, y = MRI/1000, shape = week, color = week)) +
 	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
 		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
@@ -224,16 +257,16 @@ plot_ = smry_hpv %>%
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(limits = c(1E1, 1E7),
 		      labels = scientific_10) +
-	scale_y_log10(limits = c(1E3, 7E4),
+	scale_y_log10(limits = c(1E3, 7E4)/1000,
 		      labels = scientific_10) +
 	xlab("cfDNA HPV Aligned Read Pairs") +
-	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(1E1), label.y = log10(6E4)) +
+	ylab(expression("MRI Volume "(cm^3))) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(1E1), label.y = log10(6E4/1000)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
 	      strip.background = element_blank()) +
 	facet_wrap(~week, nrow = 1, scales = "free_y") +
 	guides(color = FALSE, shape = FALSE)
@@ -250,23 +283,23 @@ plot_ = smry_adc %>%
 	tidyr::drop_na() %>%
 	dplyr::filter(week != "Pre-treatment") %>%
 	dplyr::mutate(week = gsub(pattern = "wk", replacement = "Week ", x = week, fixed = TRUE)) %>%
-	ggplot(aes(x = ADC, y = MRI, shape = week, color = week)) +
+	ggplot(aes(x = ADC, y = MRI/1000, shape = week, color = week)) +
 	geom_point(stat = "identity", fill = "white", alpha = 1, size = 2) +
 	geom_smooth(stat = "smooth", method = "rlm", formula = y ~ x,
 		    se = FALSE, fullrange = TRUE, color = "goldenrod3", size = .85) +
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_shape_manual(values = c(21, 22, 23, 24)) +
 	scale_x_log10(limits = c(0.5, 2.5)) +
-	scale_y_log10(limits = c(1E3, 7E4),
+	scale_y_log10(limits = c(1E3, 7E4)/1000,
 		      labels = scientific_10) +
-	xlab("ADC") +
-	ylab(expression("MRI Volume "(mm^3))) +
-	stat_cor(method = "spearman", color = "black", label.x = log10(0.55), label.y = log10(6E4)) +
+	xlab(expression("ADC ("%.%10^-3~mm^2~sec^-1~")")) +
+	ylab(expression("MRI Volume "(cm^3))) +
+	stat_cor(method = "spearman", color = "black", label.x = log10(0.55), label.y = log10(6E4/1000)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 10),
 	      strip.background = element_blank()) +
 	facet_wrap(~week, nrow = 1, scales = "free_y") +
 	guides(color = FALSE, shape = FALSE)
@@ -323,16 +356,16 @@ plot_ = summary(fit_ctdna) %>%
 	geom_hline(yintercept = 0, size = 1) +
 	geom_point(stat = "identity", shape = 21) +
 	xlab("") +
-	ylab("") +
+	ylab("Standardized Coefficients") +
 	scale_fill_manual(values = c("#bdbdbd", "#e41a1c")) +
 	scale_size_continuous(breaks = c(1,3,5)) +
 	scale_x_discrete() +
-	scale_y_continuous() +
+	scale_y_continuous(limits = c(-.75, .35)) +
 	coord_flip() +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 8),
 	      axis.text.y = element_text(size = 12),
 	      strip.background = element_blank(),
 	      panel.spacing = unit(2, "lines")) +
@@ -340,6 +373,6 @@ plot_ = summary(fit_ctdna) %>%
 	       size = guide_legend(title = expression(-Log[10]~"p-value"), override.aes = list(shape = 21, fill = "black"))) +
 	facet_wrap(~assay, ncol = 2, scales = "free_x")
 
-pdf(file = "../res/Linear_Regression_Coefficients_ADC.pdf", width = 9, height = 3)
+pdf(file = "../res/Linear_Regression_Coefficients_ADC.pdf", width = 6.5, height = 3)
 print(plot_)
 dev.off()

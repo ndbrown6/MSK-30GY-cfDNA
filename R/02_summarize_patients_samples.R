@@ -46,7 +46,7 @@ tumor_vars = readr::read_tsv(file = url_tumor_variants, col_names = TRUE, col_ty
 	     readr::type_convert()
 	     
 #==================================================
-## Number of unique patients with MRD assay
+# Number of unique patients with MRD assay
 #==================================================
 manifest %>%
 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -69,7 +69,7 @@ dplyr::select(patient_number, patient_id = patient_id_mskcc, n) %>%
 pander::pander(cpation = "Number of unique patients with MRD assay")
 
 #==================================================
-## Number of samples per patient
+# Number of samples per patient
 #==================================================
 manifest %>%
 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -93,7 +93,7 @@ dplyr::summarize(mean_n_samples = mean(n),
 pander::pander(caption = "Number of samples per patient")
 
 #==================================================
-## Number of patient per HPV subtype
+# Number of patient per HPV subtype
 #==================================================
 manifest %>%
 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -146,18 +146,18 @@ plot_ = manifest %>%
 			   breaks = c(0, 15, 30, 45, 60, 75, 90),
 			   labels = c(0, "", 30, "", 60, "", 90)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
-	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
-	      axis.text.y = element_text(size = 12)) +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 11),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 11),
+	      axis.text.x = element_text(size = 11, angle = 90, vjust = 0.5, hjust = 1),
+	      axis.text.y = element_text(size = 11)) +
 	guides(fill = FALSE)
 
-pdf(file = "../res/Number_Patients_by_HPV_Type.pdf", width = 2.75, height = 3.25)
+pdf(file = "../res/Number_Patients_by_HPV_Type.pdf", width = 2.5, height = 3.25)
 print(plot_)
 dev.off()
 
 #==================================================
-## Median number of variants per patient
+# Median number of variants per patient
 #==================================================
 tumor_vars %>%
 dplyr::left_join(clinical, by = "Tumor_Sample_Barcode") %>%
@@ -169,7 +169,7 @@ median() %>%
 pander::pander(caption = "Median number of varaints per patient")
 
 #==================================================
-## Number of variants per sample
+# Number of variants per sample
 #==================================================
 manifest %>%
 dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -198,7 +198,7 @@ dplyr::rename(Statistic = variable, `#` = value) %>%
 pander::pander(caption = "Number of variants per sample")
 
 #==================================================
-## ctDNA HPV-MRD patient cross-tab
+# ctDNA HPV-MRD patient cross-tab
 #==================================================
 smry__mrd = manifest %>%
 	    dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -291,7 +291,7 @@ corrplot(corr = do.call(cbind, lapply(smry_, function(x) {round(100*x/sum(x))}))
 dev.off()
 
 #==================================================
-## ctDNA HPV-MRD patient marginal frequency
+# ctDNA HPV-MRD patient marginal frequency
 #==================================================
 smry__mrd = manifest %>%
 	    dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
@@ -390,13 +390,13 @@ plot_ = smry__mrd %>%
 			   breaks = seq(from = 0, to = 100, by = 10),
 			   labels = c(0, "", 20, "", 40, "", 60, "", 80, "", 100)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12)) +
 	guides(fill = guide_legend(title = "Assay"))
 
-pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point_All.pdf", width = 2.75*2, height = 3.25)
+pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point_All.pdf", width = 5.5, height = 3.25)
 print(plot_)
 dev.off()
 
@@ -421,8 +421,8 @@ plot_ = smry__mrd %>%
 			   breaks = seq(from = 0, to = 100, by = 10),
 			   labels = c(0, "", 20, "", 40, "", 60, "", 80, "", 100)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 12, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12)) +
 	guides(fill = FALSE)
@@ -431,7 +431,7 @@ pdf(file = "../res/ctDNA_Patient_Summary_by_Time_Point_Pre-treatment.pdf", width
 print(plot_)
 dev.off()
 		 
-#########################################################
+#==================================================
 # (+) Samples with mean AF > 5% from MRD assay
 # (+) Samples with HPV subtype in assay
 # (+) Samples with +ve MRD assay
@@ -440,7 +440,7 @@ dev.off()
 # (-) Patients with no nodal dissection ≥ 2 years
 # (-) No duplicate patients
 # (+) Samples with -ve MRD assay
-#########################################################
+#==================================================
 manifest = readr::read_tsv(file = url_manifest, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 	   readr::type_convert() %>%
 	   dplyr::filter(!is.na(bam_file_name_hpv)) %>%
@@ -549,7 +549,8 @@ plot_ = smry_ft %>%
 				     "Unknown" = "#e41a1c")) +
 	xlab("") +
 	ylab("ctDNA Fraction (%)") +
-	scale_x_discrete() +
+	scale_x_discrete(breaks = c("+ve", "-ve", "Unknown"),
+			 labels = c("+ve", "-ve", "Outgroup")) +
 	scale_y_continuous(limits = c(0, 32),
 			   breaks = c(0, 5, 10, 15, 20, 25, 30),
 			   labels = c(0, "", 10, "", 20, "", 30)) +
@@ -557,15 +558,15 @@ plot_ = smry_ft %>%
 		    comparisons = list(c("+ve", "-ve")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = 31,
+		    y_position = 31, vjust = -.25,
 		    tip_length = 0.01) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
 	      axis.text.y = element_text(size = 12)) +
 	guides(fill = FALSE)
 
-pdf(file = "../res/ctDNA_Fraction_by_Time_Point.pdf", width = 2.95, height = 3.25)
+pdf(file = "../res/ctDNA_Fraction_by_Time_Point.pdf", width = 2.5, height = 3.25)
 print(plot_)
 dev.off()

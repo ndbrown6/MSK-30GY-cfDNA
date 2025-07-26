@@ -133,12 +133,13 @@ data_ = idx_metrics_ft %>%
 	dplyr::full_join(clinical, by = "patient_id_mskcc") %>%
 	dplyr::select(patient_id_mskcc,
 		      composite_end_point,
-		      abs_AF_wk0, abs_AF_wk1, abs_AF_wk2, abs_AF_wk3,
+		      abs_AF_wk0, abs_AF_wk1, abs_AF_wk2,
+		      #abs_AF_wk3,
 		      #abs_HPV_wk0, abs_HPV_wk1, abs_HPV_wk2, abs_HPV_wk3,
 		      abs_MRI_wk0 = MRI_rawdata_wk0,
 		      abs_MRI_wk1 = MRI_rawdata_wk2,
-		      abs_MRI_wk2 = MRI_rawdata_wk3,
-		      abs_MRI_wk3 = MRI_rawdata_wk4) %>%
+		      abs_MRI_wk2 = MRI_rawdata_wk3) %>%
+		      #abs_MRI_wk3 = MRI_rawdata_wk4) %>%
 	dplyr::mutate(composite_end_point = case_when(
 		composite_end_point ~ 1,
 		!composite_end_point ~ 0
@@ -170,21 +171,21 @@ id = 1
 x_dens <- density(tree_party[id]$data$abs_AF_wk2, na.rm=T)$x
 y_dens <- density(tree_party[id]$data$abs_AF_wk2, na.rm=T)$y
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= 0.0273056910569106] <- "1"
+breaks[x_dens >= 0.02731] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 id = 3
-x_dens <- density(tree_party[id]$data$abs_MRI_wk3, na.rm=T)$x
-y_dens <- density(tree_party[id]$data$abs_MRI_wk3, na.rm=T)$y*1E5
+x_dens <- density(tree_party[id]$data$abs_MRI_wk1, na.rm=T)$x
+y_dens <- density(tree_party[id]$data$abs_MRI_wk1, na.rm=T)$y/1000
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= 24418] <- "1"
+breaks[x_dens >= 27472] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 id = 4
 x_dens <- density(tree_party[id]$data$abs_AF_wk1, na.rm=T)$x
-y_dens <- density(tree_party[id]$data$abs_AF_wk1, na.rm=T)$y*10
+y_dens <- density(tree_party[id]$data$abs_AF_wk1, na.rm=T)$y
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= 2.99792868589744] <- "1"
+breaks[x_dens >= 0.17969] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 
@@ -255,28 +256,27 @@ pdf(file = "../res/Decesion_Tree_Initial_PartyKit.pdf", width = 7, height = 7)
 print(plot_)
 dev.off()
 
-
 dens_df <- data.frame(x_dens = numeric(), y_dens = numeric(), id = numeric(), breaks = character())
 
 id = 1
 x_dens <- density(log10(tree_party[id]$data$abs_AF_wk2), na.rm=T)$x
 y_dens <- density(log10(tree_party[id]$data$abs_AF_wk2), na.rm=T)$y*10
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= log10(0.0273056910569106)] <- "1"
+breaks[x_dens >= log10(0.02731)] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 id = 3
-x_dens <- density(tree_party[id]$data$abs_MRI_wk3, na.rm=T)$x
-y_dens <- density(tree_party[id]$data$abs_MRI_wk3, na.rm=T)$y*1E5
+x_dens <- density(tree_party[id]$data$abs_MRI_wk1, na.rm=T)$x
+y_dens <- density(tree_party[id]$data$abs_MRI_wk1, na.rm=T)$y*1E5
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= 24418] <- "1"
+breaks[x_dens >= 27472] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 id = 4
 x_dens <- density(log10(tree_party[id]$data$abs_AF_wk1), na.rm=T)$x
 y_dens <- density(log10(tree_party[id]$data$abs_AF_wk1), na.rm=T)$y*10
 breaks <- rep("0", length(x_dens))
-breaks[x_dens >= log10(2.99792868589744)] <- "1"
+breaks[x_dens >= log10(0.17969)] <- "1"
 dens_df <- rbind(dens_df, data.frame(x_dens, y_dens, id, breaks))
 
 plot_ = dens_df %>%
@@ -304,7 +304,7 @@ plot_ = dens_df %>%
 	guides(fill = FALSE) +
 	facet_wrap(~id, scales = "free", ncol = 1)
 
-pdf(file = "../res/Decesion_Tree_Initial_Densities.pdf", width = 3.25, height = 6)
+pdf(file = "../res/Decesion_Tree_Initial_Densities.pdf", width = 3, height = 6)
 print(plot_)
 dev.off()
 

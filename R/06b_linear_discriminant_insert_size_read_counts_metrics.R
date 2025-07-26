@@ -57,11 +57,11 @@ mutation_smry = readr::read_tsv(file = url_mutation_summary, col_names = TRUE, c
 
 target_names = c("E1_1:1950", "E2_1891:2989", "E5_2985:3237", "E6_7124:7601", "E7_7603:7900", "L1_4774:6292")
 
-#########################################################
+#==================================================
 # (+) Samples with mean AF > 5% from MRD assay
 # (+) Samples with HPV subtype in assay
 # (+) Samples with +ve MRD assay
-#########################################################
+#==================================================
 smry_t_pos = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -80,13 +80,13 @@ smry_t_pos = mutation_smry %>%
 	     dplyr::filter(`MRD-Landmark_Result` == "PRESENT") %>%
 	     dplyr::mutate(Is_ctDNA = "+ve")
 
-#########################################################
+#==================================================
 # (-) Samples with mean AF < 0.01% from MRD assay
 # (-) Samples with max AF < 0.1% from MRD assay
 # (-) Patients with no nodal dissection ≥ 2 years
 # (-) No duplicate patients
 # (+) Samples with -ve MRD assay
-#########################################################
+#==================================================
 smry_t_neg = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -135,9 +135,9 @@ smry_ft = dplyr::bind_rows(smry_t_pos %>%
 			   smry_t_neg %>%
 			   dplyr::select(all_of(intersect(colnames(smry_t_pos), colnames(smry_t_neg)))))
 
-#########################################################
-# Test sets HPV-16 -ve
-#########################################################
+#==================================================
+# Test set HPV-16 -ve
+#==================================================
 smry_ = insert_size_metrics %>%
 	dplyr::left_join(mutation_smry %>%
 			 dplyr::filter(FILTER == "PASS") %>%
@@ -294,8 +294,8 @@ plot_ = do.call(cbind, res_) %>%
 	scale_fill_manual(values = c("training" = "#377eb8",
 				     "test" = "#e41a1c")) +
 	scale_x_discrete(breaks = c("1:training", "2:training", "2:test"),
-			 labels = c("+ve", "-ve", "Unknown")) +
-	scale_y_continuous(limits = c(-200, 20),
+			 labels = c("+ve", "-ve", "Outgroup")) +
+	scale_y_continuous(limits = c(-200, 25),
 			   breaks = c(-200, -175, -150, -125, -100, -75, -50, -25, 0),
 			   labels = c(-200, "", -150, "", -100, "", -50, "", 0)) +
 	xlab("") +
@@ -304,16 +304,16 @@ plot_ = do.call(cbind, res_) %>%
 		    comparisons = list(c("1:training", "2:training")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = 15,
-		    tip_length = 0.01) +
+		    y_position = 15, vjust = -.5,
+		    tip_length = 0.02) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
 	      axis.text.y = element_text(size = 12)) +
 	guides(fill = FALSE)
 
-pdf(file = "../res/Posterior_Probability_Test_HPV-16_Negative.pdf", width = 2.95, height = 3.25)
+pdf(file = "../res/Posterior_Probability_Test_HPV-16_Negative.pdf", width = 2.5, height = 3.25)
 print(plot_)
 dev.off()
 
@@ -322,30 +322,32 @@ plot_ = fit_$scaling %>%
 	tibble::rownames_to_column("variable") %>%
 	dplyr::as_tibble() %>%
 	dplyr::rename(coefficient  = "LD1") %>%
-	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
+	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "\nMean Insert Size\n\n", "\nAligned Read Pairs\n\n")) %>%
 	dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
 	dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
 	dplyr::mutate(variable = factor(variable, levels = rev(c("E1", "E2", "E5", "L1", "E6", "E7")), ordered = TRUE)) %>%
 	ggplot(aes(x = variable, ymin = 0, ymax = coefficient, y = coefficient, shape = is_insert_size)) +
 	geom_linerange(stat = "identity", size = .5) +
-	geom_hline(yintercept = 0, size = .5) +
-	geom_point(stat = "identity", fill = "white", size = 1.5) +
+	geom_hline(yintercept = 0, size = .75) +
+	geom_point(stat = "identity", fill = "white", size = 3.5) +
 	xlab("") +
-	ylab("") +
+	ylab("Standardized Coefficients") +
 	scale_shape_manual(values = c(21, 22)) +
 	scale_y_continuous(limits = c(-40, 20),
 			   breaks = c(-40, -30, -20, -10, 0, 10, 20),
 			   labels = c(-40, "", -20, "", 0, "", 20)) +
 	coord_flip() +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      panel.spacing = unit(1, "lines"),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      panel.spacing = unit(2, "lines"),
 	      strip.background = element_rect(colour="white", fill="white")) +
-	facet_wrap(~is_insert_size, ncol = 1, scales = "free") +
+	facet_wrap(~is_insert_size, ncol = 2, scales = "free") +
 	guides(shape = FALSE)
 
-pdf(file = "../res/Coefficients_Linear_Discriminant_Analysis.pdf", width = 2, height = 3.25)
+pdf(file = "../res/Coefficients_Linear_Discriminant_Analysis.pdf", width = 3.25*2, height = 3.25)
 print(plot_)
 dev.off()
 
@@ -369,7 +371,7 @@ plot_ = fit_ %>%
 		   	  dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
 		   	  dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
 		   	  dplyr::mutate(index = 1:nrow(.)),
-		   mapping = aes(x = index, y = `Wilks.lambda`, shape = is_insert_size), stat = "identity", fill = "white", size = 1.5, inherit.aes = FALSE) +
+		   mapping = aes(x = index, y = `Wilks.lambda`, shape = is_insert_size), stat = "identity", fill = "white", size = 2.5, inherit.aes = FALSE) +
 	xlab("") +
 	ylab(expression("Wilks'"~lambda)) +
 	scale_shape_manual(values = c(21, 22)) +
@@ -386,12 +388,13 @@ plot_ = fit_ %>%
 	scale_y_continuous(breaks = c(0.006, 0.0065, 0.007, 0.0075, 0.008, 0.0085),
 			   labels = c(".006", "", ".007", "", ".008", "")) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 7)) +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 9),
+	      axis.text.y = element_text(size = 12)) +
 	guides(shape = guide_legend(title = ""))
 
-pdf(file = "../res/Wilks_Lambda_Linear_Discriminant_Analysis.pdf", width = 4.25, height = 2.25)
+pdf(file = "../res/Wilks_Lambda_Linear_Discriminant_Analysis.pdf", width = 4.75, height = 3.25)
 print(plot_)
 dev.off()
 	

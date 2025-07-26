@@ -201,9 +201,47 @@ paramy = rpart::rpart.control(minsplit = 5,
 	return(invisible(mce))
 }
 
+'Auc_NoCv' <- function(data) {
+	fit = rpart(composite_end_point ~ ., data = data, method = "class", control = paramx)
+	prd = predict(object = fit, newdata = data, type = "prob")
+	roc = pROC::roc(response = data$composite_end_point, predictor = prd[,"1"], quiet = TRUE) %>%
+	      .$auc %>%
+	      as.numeric()
+}
+
+'Auc_10Cv' <- function(data) {
+	tidy_data = data %>% tidyr::drop_na()
+	roc = list()
+	for (j  in 1:100) {
+		folds = split(tidy_data, cut(sample(1:nrow(tidy_data)),5))
+		roc[[j]] = rep(NA, length(folds))
+		for (i in 1:length(folds)) {
+			test = ldply(folds[i], data.frame, .id = NULL)
+			train = ldply(folds[-i], data.frame, .id = NULL)
+			tmp.fit = rpart(composite_end_point ~ ., data = train, method = "class", control = paramy)
+			tmp.prd = predict(tmp.fit, newdata = test, type = "prob")
+			x = try(pROC::roc(response = test$composite_end_point, predictor = tmp.prd[,"1"], quiet = TRUE) %>%
+				.$auc %>%
+				as.numeric())
+			if ("try-error" %in% is(x)) {
+				roc[[j]][i] = NA
+			} else {
+				roc[[j]][i] = x
+			}
+		}
+	}
+	roc = unlist(lapply(roc, mean, na.rm = TRUE))
+	return(invisible(roc))
+	
+}
+
 set.seed(12345)
+
 Training_Error = list()
 Test_Error = list()
+
+Training_Auc = list()
+Test_Auc = list()
 
 #==================================================
 # Relative HPV
@@ -215,6 +253,9 @@ data = data_ %>%
 Training_Error[[1]] = Class_NoCv(data = data)
 Test_Error[[1]] = Class_10Cv(data = data)
 
+Training_Auc[[1]] = Auc_NoCv(data = data)
+Test_Auc[[1]] = Auc_10Cv(data = data)
+
 #==================================================
 # Absolute HPV
 #==================================================
@@ -224,6 +265,9 @@ data = data_ %>%
 
 Training_Error[[2]] = Class_NoCv(data = data)
 Test_Error[[2]] = Class_10Cv(data = data)
+
+Training_Auc[[2]] = Auc_NoCv(data = data)
+Test_Auc[[2]] = Auc_10Cv(data = data)
 
 #==================================================
 # Relative AF
@@ -235,6 +279,9 @@ data = data_ %>%
 Training_Error[[3]] = Class_NoCv(data = data)
 Test_Error[[3]] = Class_10Cv(data = data)
 
+Training_Auc[[3]] = Auc_NoCv(data = data)
+Test_Auc[[3]] = Auc_10Cv(data = data)
+
 #==================================================
 # Absolute AF
 #==================================================
@@ -244,6 +291,9 @@ data = data_ %>%
 
 Training_Error[[4]] = Class_NoCv(data = data)
 Test_Error[[4]] = Class_10Cv(data = data)
+
+Training_Auc[[4]] = Auc_NoCv(data = data)
+Test_Auc[[4]] = Auc_10Cv(data = data)
 
 #==================================================
 # Relative MRI
@@ -255,6 +305,9 @@ data = data_ %>%
 Training_Error[[5]] = Class_NoCv(data = data)
 Test_Error[[5]] = Class_10Cv(data = data)
 
+Training_Auc[[5]] = Auc_NoCv(data = data)
+Test_Auc[[5]] = Auc_10Cv(data = data)
+
 #==================================================
 # Absolute MRI
 #==================================================
@@ -264,6 +317,9 @@ data = data_ %>%
 
 Training_Error[[6]] = Class_NoCv(data = data)
 Test_Error[[6]] = Class_10Cv(data = data)
+
+Training_Auc[[6]] = Auc_NoCv(data = data)
+Test_Auc[[6]] = Auc_10Cv(data = data)
 
 #==================================================
 # Absolute AF + Absolute MRI
@@ -275,15 +331,18 @@ data = data_ %>%
 Training_Error[[7]] = Class_NoCv(data = data)
 Test_Error[[7]] = Class_10Cv(data = data)
 
-names(Training_Error) = c("Relative cfDNA HPV\nReads", "Absolute cfDNA HPV\nReads",
-			  "Relative ctDNA\nFraction", "Absolute ctDNA\nFraction",
-			  "Absolute MRI\nVolume", "Relative MRI\nVolume",
-			  "ctDNA Fraction\n+ MRI Volume")
+Training_Auc[[7]] = Auc_NoCv(data = data)
+Test_Auc[[7]] = Auc_10Cv(data = data)
 
-names(Test_Error) = c("Relative cfDNA HPV\nReads", "Absolute cfDNA HPV\nReads",
-		      "Relative ctDNA\nFraction", "Absolute ctDNA\nFraction",
-		      "Absolute MRI\nVolume", "Relative MRI\nVolume",
-		      "ctDNA Fraction\n+ MRI Volume")
+names(Training_Error) = names(Training_Auc) = c("Relative cfDNA HPV\nReads", "Absolute cfDNA HPV\nReads",
+						"Relative ctDNA\nFraction", "Absolute ctDNA\nFraction",
+						"Absolute MRI\nVolume", "Relative MRI\nVolume",
+						"ctDNA Fraction\n+ MRI Volume")
+
+names(Test_Error) = names(Test_Auc) = c("Relative cfDNA HPV\nReads", "Absolute cfDNA HPV\nReads",
+					"Relative ctDNA\nFraction", "Absolute ctDNA\nFraction",
+					"Absolute MRI\nVolume", "Relative MRI\nVolume",
+					"ctDNA Fraction\n+ MRI Volume")
 
 
 p1 = wilcox.test(x = Test_Error$`ctDNA Fraction\n+ MRI Volume`,
@@ -308,19 +367,18 @@ plot_ = Test_Error %>%
 	geom_jitter(stat = "identity", position = position_jitterdodge(jitter.width = .2), shape = 21, size = 2, fill = "white", alpha = .55) +
 	geom_hline(yintercept = Training_Error$`ctDNA Fraction\n+ MRI Volume`, color = "red", linetype = 3) +
 	geom_jitter(data = Training_Error %>%
-		   	  dplyr::as_tibble() %>%
-		   	  reshape2::melt() %>%
-			  dplyr::mutate(category = case_when(
+		   	   dplyr::as_tibble() %>%
+		   	   reshape2::melt() %>%
+			   dplyr::mutate(category = case_when(
 				  grepl("Relative", variable) ~ "Relative",
 				  grepl("Absolute", variable) ~ "Absolute",
 				  TRUE ~ "Absolute"
-			  )) %>%
-		   	  dplyr::mutate(variable = gsub(pattern = "Relative |Absolute ", replacement = "", x = variable, perl = TRUE, fixed = FALSE)) %>%
-		   	  dplyr::mutate(category = factor(category, levels = c("Relative", "Absolute"), ordered = TRUE)) %>%
-		   	  dplyr::mutate(variable = factor(variable, levels = c("cfDNA HPV\nReads", "ctDNA\nFraction", "MRI\nVolume", "ctDNA Fraction\n+ MRI Volume"), ordered = TRUE)),
+			   )) %>%
+		   	   dplyr::mutate(variable = gsub(pattern = "Relative |Absolute ", replacement = "", x = variable, perl = TRUE, fixed = FALSE)) %>%
+		   	   dplyr::mutate(category = factor(category, levels = c("Relative", "Absolute"), ordered = TRUE)) %>%
+		   	   dplyr::mutate(variable = factor(variable, levels = c("cfDNA HPV\nReads", "ctDNA\nFraction", "MRI\nVolume", "ctDNA Fraction\n+ MRI Volume"), ordered = TRUE)),
 		   mapping = aes(x = variable, y = value, fill = category, group = variable:category),
 		   stat = "identity", position = position_jitterdodge(jitter.width = 0), shape = 8, inherit.aes = FALSE, show.legend = FALSE) +
-	
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_x_discrete() +
 	scale_y_continuous(limits = c(NA,100)) +
@@ -342,3 +400,92 @@ plot_ = Test_Error %>%
 pdf(file = "../res/Decesion_Tree_Misclassification_Error.pdf", width = 4.25, height = 4.5)
 print(plot_)
 dev.off()
+
+p1 = wilcox.test(x = Test_Auc$`ctDNA Fraction\n+ MRI Volume`,
+		 y = Test_Auc$`Absolute ctDNA\nFraction`)$p.value
+
+p2 = wilcox.test(x = Test_Auc$`ctDNA Fraction\n+ MRI Volume`,
+		 y = Test_Auc$`Absolute MRI\nVolume`)$p.value
+
+plot_ = Test_Auc %>%
+	dplyr::as_tibble() %>%
+	reshape2::melt() %>%
+	dplyr::mutate(category = case_when(
+		grepl("Relative", variable) ~ "Relative",
+		grepl("Absolute", variable) ~ "Absolute",
+		TRUE ~ "Absolute"
+	)) %>%
+	dplyr::mutate(variable = gsub(pattern = "Relative |Absolute ", replacement = "", x = variable, perl = TRUE, fixed = FALSE)) %>%
+	dplyr::mutate(category = factor(category, levels = c("Relative", "Absolute"), ordered = TRUE)) %>%
+	dplyr::mutate(variable = factor(variable, levels = c("cfDNA HPV\nReads", "ctDNA\nFraction", "MRI\nVolume", "ctDNA Fraction\n+ MRI Volume"), ordered = TRUE)) %>%
+	ggplot(aes(x = variable, y = value, color = category, group = variable:category)) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+	geom_jitter(stat = "identity", position = position_jitterdodge(jitter.width = .2), shape = 21, size = 2, fill = "white", alpha = .55) +
+	geom_hline(yintercept = Training_Auc$`ctDNA Fraction\n+ MRI Volume`, color = "red", linetype = 3) +
+	geom_jitter(data = Training_Auc %>%
+		   	   dplyr::as_tibble() %>%
+		   	   reshape2::melt() %>%
+			   dplyr::mutate(category = case_when(
+				  grepl("Relative", variable) ~ "Relative",
+				  grepl("Absolute", variable) ~ "Absolute",
+				  TRUE ~ "Absolute"
+			   )) %>%
+		   	   dplyr::mutate(variable = gsub(pattern = "Relative |Absolute ", replacement = "", x = variable, perl = TRUE, fixed = FALSE)) %>%
+		   	   dplyr::mutate(category = factor(category, levels = c("Relative", "Absolute"), ordered = TRUE)) %>%
+		   	   dplyr::mutate(variable = factor(variable, levels = c("cfDNA HPV\nReads", "ctDNA\nFraction", "MRI\nVolume", "ctDNA Fraction\n+ MRI Volume"), ordered = TRUE)),
+		   mapping = aes(x = variable, y = value, fill = category, group = variable:category),
+		   stat = "identity", position = position_jitterdodge(jitter.width = 0), shape = 8, inherit.aes = FALSE, show.legend = FALSE) +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_x_discrete() +
+	scale_y_continuous(limits = c(.4,1.5)) +
+	xlab("") +
+	ylab("5-Fold Cross-\nvalidated AUC") +
+	geom_signif(annotation = formatC(p1, digits = 1),
+		    y_position = 1.3, xmin = 2.3, xmax = 4, 
+		    tip_length = c(0.03, 0.03), color = "black") +
+	geom_signif(annotation = formatC(p2, digits = 1),
+		    y_position = 1.18, xmin = 3.3, xmax = 4, 
+		    tip_length = c(0.03, 0.03), color = "black") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.title.y = element_text(margin = margin(r = 20)),
+	      axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
+	      axis.text.y = element_text(size = 12)) +
+	guides(color = guide_legend(title = "Relative or\nAbsolute\nvalue?"))
+
+pdf(file = "../res/Decesion_Tree_Area_under_Curve.pdf", width = 4.25, height = 4.5)
+print(plot_)
+dev.off()
+
+fit = rpart(composite_end_point ~ ., data = data, method = "class", control = paramx)
+prd = predict(object = fit, newdata = data, type = "prob")
+all_coords = pROC::roc(response = data$composite_end_point, predictor = prd[,"1"], ret = "all_coords")
+
+fx = drm(formula = sensitivity ~ specificity,
+	 data = dplyr::tibble(specificity = 100*all_coords %>% .$specificities,
+			      sensitivity = 100-(100*all_coords %>% .$sensitivities)),
+	 fct = LL2.4())
+
+plot_ = dplyr::tibble(specificity = 100*all_coords %>% .$specificities,
+		      sensitivity = 100*all_coords %>% .$sensitivities) %>%
+	ggplot(aes(x = 100-sensitivity, y = specificity)) +
+	geom_abline(intercept = 0, slope = 1, color = "grey", alpha = .55, size = 1) +
+	geom_point(stat = "identity", shape = 21, color = "#377eb8", fill = "white", size = 3) +
+	geom_line(mapping = aes(x = x, y = y),
+		  data = dplyr::tibble(y = seq(0, 100, by = 1),
+				       x = fx$curve[[1]](seq(0, 100, by = 1))),
+		  linetype = 3, color = "red", inherit.aes = FALSE) +
+	scale_x_continuous(limits = c(0, 100)) +
+	scale_y_continuous(limits = c(0, 100)) +
+	xlab("False Positive Rate") +
+	ylab("True Positive Rate") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 14),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 14),
+	      axis.text.x = element_text(size = 14),
+	      axis.text.y = element_text(size = 14))
+
+pdf(file = "../res/Decesion_Tree_ROC_Curve.pdf", width = 4.25, height = 4.5)
+print(plot_)
+dev.off()
+

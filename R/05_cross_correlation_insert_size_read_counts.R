@@ -70,11 +70,11 @@ hs_metrics_ft = readr::read_tsv(file = url_hs_target_metrics_ft, col_names = TRU
 mutation_smry = readr::read_tsv(file = url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 		readr::type_convert()
 
-#########################################################
+#==================================================
 # (+) Samples with mean AF > 5% from MRD assay
 # (+) Samples with HPV subtype in assay
 # (+) Samples with +ve MRD assay
-#########################################################
+#==================================================
 smry_t_pos = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -93,13 +93,13 @@ smry_t_pos = mutation_smry %>%
 	     dplyr::filter(`MRD-Landmark_Result` == "PRESENT") %>%
 	     dplyr::mutate(Is_ctDNA = "+ve")
 
-#########################################################
+#==================================================
 # (-) Samples with mean AF < 0.01% from MRD assay
 # (-) Samples with max AF < 0.1% from MRD assay
 # (-) Patients with no nodal dissection ≥ 2 years
 # (-) No duplicate patients
 # (+) Samples with -ve MRD assay
-#########################################################
+#==================================================
 smry_t_neg = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -148,10 +148,10 @@ smry_ft = dplyr::bind_rows(smry_t_pos %>%
 			   smry_t_neg %>%
 			   dplyr::select(all_of(intersect(colnames(smry_t_pos), colnames(smry_t_neg)))))
 
-#########################################################
+#==================================================
 # Number of Read Pairs
 # Training set only HPV-16 +ve
-#########################################################
+#==================================================
 insert_size_metrics = readr::read_tsv(file = url_insert_metrics_by_gene, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 		      readr::type_convert() %>%
 		      dplyr::rename(sample_name = SAMPLE_NAME) %>%
@@ -229,7 +229,7 @@ for (i in 1:nrow(r)) {
 colnames(m) = unlist(lapply(colnames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 rownames(m) = unlist(lapply(rownames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 
-pdf(file = "../res/Cross_Correlation_targets_Number_of_Reads_HPV-16.pdf", width = 3.5, height = 3)
+pdf(file = "../res/Cross_Correlation_targets_Number_of_Reads_HPV-16.pdf", width = 5, height = 5)
 corrplot(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
 	 method = "circle",
 	 type = "lower",
@@ -248,10 +248,10 @@ corrplot(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2
 	 cl.length = 7)
 dev.off()
 
-#########################################################
+#==================================================
 # Mean Insert Size
 # Training set only HPV-16 +ve
-#########################################################
+#==================================================
 insert_size_metrics = readr::read_tsv(file = url_insert_metrics_by_gene, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 		      readr::type_convert() %>%
 		      dplyr::rename(sample_name = SAMPLE_NAME) %>%
@@ -329,7 +329,7 @@ for (i in 1:nrow(r)) {
 colnames(m) = unlist(lapply(colnames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 rownames(m) = unlist(lapply(rownames(m), function(x) {unlist(strsplit(x, "_"))[1]}))
 
-pdf(file = "../res/Cross_Correlation_targets_Mean_Insert_Size_HPV-16.pdf", width = 3.5, height = 3)
+pdf(file = "../res/Cross_Correlation_targets_Mean_Insert_Size_HPV-16.pdf", width = 5, height = 5)
 corrplot(corr = m[c("E6", "E7", "E1", "E2", "E5", "L1"), c("E6", "E7", "E1", "E2", "E5", "L1")],
 	 method = "circle",
 	 type = "lower",

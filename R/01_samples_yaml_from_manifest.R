@@ -19,9 +19,9 @@ manifest = manifest %>%
 		   TRUE ~ patient_id_mskcc
 	   ))
 
-#####################################################
-## HPV BAM files
-#####################################################
+#==================================================
+# HPV BAM files
+#==================================================
 patient_uuid = manifest %>%
 	       dplyr::filter(!is.na(bam_file_name_hpv)) %>%
 	       dplyr::arrange(patient_id_mskcc) %>%
@@ -50,9 +50,9 @@ if (is_file) {
 	}
 }
 
-#####################################################
-## MRD VCF files
-#####################################################
+#==================================================
+# MRD VCF files
+#==================================================
 patient_uuid = manifest %>%
 	       dplyr::filter(!is.na(vcf_file_name)) %>%
 	       dplyr::arrange(patient_id_mskcc) %>%

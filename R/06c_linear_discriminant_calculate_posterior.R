@@ -59,11 +59,11 @@ mutation_smry = readr::read_tsv(file = url_mutation_summary, col_names = TRUE, c
 
 target_names = c("E1_1:1950", "E2_1891:2989", "E5_2985:3237", "E6_7124:7601", "E7_7603:7900", "L1_4774:6292")
 
-#########################################################
+#==================================================
 # (+) Samples with mean AF > 5% from MRD assay
 # (+) Samples with HPV subtype in assay
 # (+) Samples with +ve MRD assay
-#########################################################
+#==================================================
 smry_t_pos = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -82,13 +82,13 @@ smry_t_pos = mutation_smry %>%
 	     dplyr::filter(`MRD-Landmark_Result` == "PRESENT") %>%
 	     dplyr::mutate(Is_ctDNA = "+ve")
 
-#########################################################
+#==================================================
 # (-) Samples with mean AF < 0.01% from MRD assay
 # (-) Samples with max AF < 0.1% from MRD assay
 # (-) Patients with no nodal dissection ≥ 2 years
 # (-) No duplicate patients
 # (+) Samples with -ve MRD assay
-#########################################################
+#==================================================
 smry_t_neg = mutation_smry %>%
 	     dplyr::filter(FILTER == "PASS") %>%
 	     dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -150,9 +150,9 @@ if (!USE_ALL) {
 		  dplyr::select(sample_name, Is_ctDNA)
 }
 
-#########################################################
+#==================================================
 # Training and Test sets
-#########################################################
+#==================================================
 smry_ = insert_size_metrics %>%
 	dplyr::left_join(mutation_smry %>%
 			 dplyr::filter(FILTER == "PASS") %>%

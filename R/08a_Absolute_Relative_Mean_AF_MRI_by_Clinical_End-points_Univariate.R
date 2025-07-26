@@ -295,8 +295,8 @@ plot_ = res_ %>%
 	xlab("") +
 	ylab("") +
 	theme_minimal() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
 	      axis.text.y = element_text(size = 12),
 	      strip.background = element_blank()) +
@@ -325,47 +325,47 @@ plot_ = data_ %>%
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
-		    y_position = log10(500)) +
+		    size = .55, textsize = 4, color = "grey25", vjust = -.5, 
+		    y_position = 0.95*log10(500)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 11),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = FALSE, fill = FALSE)
 
-pdf(file = "../res/Raw_Mean_AF_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 4)
+pdf(file = "../res/Raw_Mean_AF_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 3.25)
 print(plot_)
 dev.off()
 
 plot_ = data_ %>%
 	dplyr::filter(variable == "abs_MRI_wk2") %>%
 	dplyr::mutate(composite_end_point = factor(composite_end_point, levels = c(0, 1), ordered = TRUE)) %>%
-	ggplot(aes(x = composite_end_point, y = 100*value, fill = composite_end_point)) +
+	ggplot(aes(x = composite_end_point, y = (100*value)/1000, fill = composite_end_point)) +
 	geom_half_dotplot(binaxis = "y", stackdir = "up", dotsize = .65, right = TRUE, method = "dotdensity", fill = "white") +
 	geom_half_violin(stat = "half_ydensity", side = "l", trim = FALSE, scale = "count", color = "black") +
 	scale_fill_brewer(type = "qual", palette = 7) +
 	scale_x_discrete(breaks = c(0, 1),
 			 labels = c("Low", "High")) +
-	scale_y_log10(limits = c(1E4, 1E8),
-		      breaks = c(1E4, 1E5, 1E6, 1E7),
+	scale_y_log10(limits = c(1E4, 1E8)/1000,
+		      breaks = c(1E4, 1E5, 1E6, 1E7)/1000,
 		      labels = scientific_10) +
 	xlab("Risk group") +
-	ylab("MRI Volume (mm3)") +
+	ylab("MRI Volume (cm3)") +
 	geom_signif(stat = "signif",
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
-		    y_position = log10(7E7)) +
+		    size = .55, textsize = 4, color = "grey25", vjust = -.5, 
+		    y_position = 0.95*log10(7E7/1000)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 11),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = FALSE, fill = FALSE)
 
-pdf(file = "../res/Raw_MRI_Volume_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 4)
+pdf(file = "../res/Raw_MRI_Volume_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 3.25)
 print(plot_)
 dev.off()
 
@@ -387,15 +387,15 @@ plot_ = data_ %>%
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
 		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    size = .55, textsize = 4, color = "grey25", vjust = -1, 
-		    y_position = log10(3E11)) +
+		    size = .55, textsize = 4, color = "grey25", vjust = -.5, 
+		    y_position = .95*log10(3E11)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 11),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = FALSE, fill = FALSE)
 
-pdf(file = "../res/Raw_HPV_Reads_Pairs_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 4)
+pdf(file = "../res/Raw_HPV_Reads_Pairs_at_Wk2_by_Clinical_End_Points.pdf", width = 3, height = 3.25)
 print(plot_)
 dev.off()

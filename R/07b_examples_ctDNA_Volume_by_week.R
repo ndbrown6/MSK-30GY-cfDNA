@@ -108,7 +108,7 @@ idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, co
 		))
 
 #==================================================
-# Mean AF by Week
+# Mean AF by Week (CTMS-161)
 #==================================================
 p_mrd = idx_metrics_ft %>%
 	dplyr::left_join(mrd_smry %>%
@@ -135,7 +135,7 @@ p_mrd = p_mrd %>%
 	dplyr::mutate(assay = "PCM")
 
 #==================================================
-# Number of Read Pairs by Week
+# Number of Read Pairs by Week (CTMS-161)
 #==================================================
 p_hpv = idx_metrics_ft %>%
 	dplyr::left_join(posterior_probability %>%
@@ -157,7 +157,7 @@ p_hpv = p_hpv %>%
 	dplyr::mutate(assay = "HPV")
 
 #==================================================
-# MRI Volume by Week
+# MRI Volume by Week (CTMS-161)
 #==================================================
 p_mri = clinical %>%
 	dplyr::select(patient_id_mskcc,
@@ -182,11 +182,39 @@ p_mri = p_mri %>%
 					   .[["measure"]])) %>%
 	dplyr::mutate(Is_ctDNA = "Not Applicable", assay = "MRI")
 
+#==================================================
+# ADC Volume by Week (CTMS-161)
+#==================================================
+p_adc = clinical %>%
+	dplyr::select(patient_id_mskcc,
+		      `Pre-treatment` = ADC_Mean_wk0,
+		      `wk1` = ADC_Mean_wk1,
+		      `wk2` = ADC_Mean_wk2,
+		      `wk3` = ADC_Mean_wk3) %>%
+	reshape2::melt(variable.name = "timepoint_weeks_since_start_of_RT", value.name = "ADC") %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-161") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		timepoint_weeks_since_start_of_RT == "Pre-treatment" ~ "0",
+		timepoint_weeks_since_start_of_RT == "wk1" ~ "1",
+		timepoint_weeks_since_start_of_RT == "wk2" ~ "2",
+		timepoint_weeks_since_start_of_RT == "wk3" ~ "3"
+	)) %>%
+	readr::type_convert() %>%
+	dplyr::select(patient_id_mskcc, timepoint_weeks_since_start_of_RT, measure = ADC)
+p_adc = p_adc %>%
+	dplyr::mutate(measure = measure / (p_adc %>%
+					   dplyr::filter(timepoint_weeks_since_start_of_RT==0) %>%
+					   .[["measure"]]) - 1) %>%
+	dplyr::mutate(measure = ifelse(measure<0, 0, 4*measure)) %>%
+	dplyr::mutate(Is_ctDNA = "Not Applicable", assay = "ADC")
+
 plot_ = p_mrd %>%
 	dplyr::bind_rows(p_hpv) %>%
 	dplyr::bind_rows(p_mri) %>%
+	dplyr::bind_rows(p_adc) %>%
 	dplyr::mutate(measure = measure * 100) %>%
-	dplyr::mutate(assay = factor(assay, levels = c("PCM", "HPV", "MRI"), ordered = TRUE)) %>%
+	dplyr::mutate(assay = factor(assay, levels = c("PCM", "HPV", "MRI", "ADC"), ordered = TRUE)) %>%
 	ggplot(aes(x = timepoint_weeks_since_start_of_RT, y = measure, shape = Is_ctDNA, color = assay)) +
 	geom_line(mapping = aes(x = timepoint_weeks_since_start_of_RT, y = measure, color = assay),
 		  stat = "identity", size = 1.25, alpha = .75, inherit.aes = FALSE) +
@@ -195,20 +223,156 @@ plot_ = p_mrd %>%
 	scale_color_brewer(type = "qual", palette = 7) +
 	scale_x_continuous(breaks = 0:3,
 			   labels = c("Pre-treat\n-ment", "Week 1", "Week 2", "Week 3")) +
-	scale_y_continuous(limits = c(0, 100),
+	scale_y_continuous(limits = c(-2, 105),
 			   breaks = c(0, 25, 50, 75, 100),
-			   labels = c(100, 75, 50, 25, 0)) +
+			   labels = c(100, 75, 50, 25, 0),
+			   sec.axis = sec_axis(trans = ~., name = "Relative ADC Increase\nfrom Baseline (%)\n",
+			  		       breaks = c(0, 20, 40, 60, 80, 100), labels = c(0, 20, 40, 60, 80, 100)/4)) +
 	xlab("") +
-	ylab("Relative Change from Baseline (%)") +
+	ylab("Relative Decrease\nfrom Baseline (%)\n") +
 	theme_classic() +
 	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
 	      axis.text.x = element_text(margin = margin(t = 7), size = 12),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = guide_legend(title = "Assay Modality", order = 1),
 	       shape = guide_legend(title = "ctDNA Status", order = 2))
 
-pdf(file = "../res/CTMS-30_MRI_HPV_MRD_Combined.pdf", width = 6, height = 3)
+pdf(file = "../res/CTMS-161_MRI_ADC_MRD_HPV_Combined.pdf", width = 7.5, height = 3.5)
+print(plot_)
+dev.off()
+
+#==================================================
+# Mean AF by Week (CTMS-30)
+#==================================================
+p_mrd = idx_metrics_ft %>%
+	dplyr::left_join(mrd_smry %>%
+			 dplyr::mutate(sample_name = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)),
+			 by = "sample_name") %>%
+	dplyr::mutate(Is_ctDNA = case_when(
+		`MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
+		`MRD-Monitoring_Result` == "ABSENT" ~ "-ve"
+	)) %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-30") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("wk0", "wk1", "wk2", "wk3")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		timepoint_weeks_since_start_of_RT == "wk0" ~ "0",
+		timepoint_weeks_since_start_of_RT == "wk1" ~ "1",
+		timepoint_weeks_since_start_of_RT == "wk2" ~ "2",
+		timepoint_weeks_since_start_of_RT == "wk3" ~ "3"
+	)) %>%
+	readr::type_convert() %>%
+	dplyr::select(patient_id_mskcc, timepoint_weeks_since_start_of_RT, measure = mean_af, Is_ctDNA)
+p_mrd = p_mrd %>%
+	dplyr::mutate(measure = measure / (p_mrd %>%
+					   dplyr::filter(timepoint_weeks_since_start_of_RT==0) %>%
+					   .[["measure"]])) %>%
+	dplyr::mutate(assay = "PCM")
+
+#==================================================
+# Number of Read Pairs by Week (CTMS-30)
+#==================================================
+p_hpv = idx_metrics_ft %>%
+	dplyr::left_join(posterior_probability %>%
+			 dplyr::select(sample_name, Is_ctDNA), by = "sample_name") %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-30") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("wk0", "wk1", "wk2", "wk3")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		timepoint_weeks_since_start_of_RT == "wk0" ~ "0",
+		timepoint_weeks_since_start_of_RT == "wk1" ~ "1",
+		timepoint_weeks_since_start_of_RT == "wk2" ~ "2",
+		timepoint_weeks_since_start_of_RT == "wk3" ~ "3"
+	)) %>%
+	readr::type_convert() %>%
+	dplyr::select(patient_id_mskcc, timepoint_weeks_since_start_of_RT, measure = aligned_reads, Is_ctDNA)
+p_hpv = p_hpv %>%
+	dplyr::mutate(measure = measure / (p_hpv %>%
+					   dplyr::filter(timepoint_weeks_since_start_of_RT==0) %>%
+					   .[["measure"]])) %>%
+	dplyr::mutate(assay = "HPV")
+
+#==================================================
+# MRI Volume by Week (CTMS-30)
+#==================================================
+p_mri = clinical %>%
+	dplyr::select(patient_id_mskcc,
+		      `Pre-treatment` = MRI_rawdata_wk0,
+		      `wk1` = MRI_rawdata_wk1,
+		      `wk2` = MRI_rawdata_wk2,
+		      `wk3` = MRI_rawdata_wk3) %>%
+	reshape2::melt(variable.name = "timepoint_weeks_since_start_of_RT", value.name = "MRI_volume") %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-30") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		timepoint_weeks_since_start_of_RT == "Pre-treatment" ~ "0",
+		timepoint_weeks_since_start_of_RT == "wk1" ~ "1",
+		timepoint_weeks_since_start_of_RT == "wk2" ~ "2",
+		timepoint_weeks_since_start_of_RT == "wk3" ~ "3"
+	)) %>%
+	readr::type_convert() %>%
+	dplyr::select(patient_id_mskcc, timepoint_weeks_since_start_of_RT, measure = MRI_volume)
+p_mri = p_mri %>%
+	dplyr::mutate(measure = measure / (p_mri %>%
+					   dplyr::filter(timepoint_weeks_since_start_of_RT==0) %>%
+					   .[["measure"]]) - 1) %>%
+	dplyr::mutate(measure = ifelse(measure<0, 0, 2*measure)) %>%
+	dplyr::mutate(Is_ctDNA = "Not Applicable", assay = "MRI")
+
+#==================================================
+# ADC Volume by Week (CTMS-30)
+#==================================================
+p_adc = clinical %>%
+	dplyr::select(patient_id_mskcc,
+		      `Pre-treatment` = ADC_Mean_wk0,
+		      `wk1` = ADC_Mean_wk1,
+		      `wk2` = ADC_Mean_wk2,
+		      `wk3` = ADC_Mean_wk3) %>%
+	reshape2::melt(variable.name = "timepoint_weeks_since_start_of_RT", value.name = "ADC") %>%
+	dplyr::filter(patient_id_mskcc == "CTMS-30") %>%
+	dplyr::filter(timepoint_weeks_since_start_of_RT %in% c("Pre-treatment", "wk1", "wk2", "wk3")) %>%
+	dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+		timepoint_weeks_since_start_of_RT == "Pre-treatment" ~ "0",
+		timepoint_weeks_since_start_of_RT == "wk1" ~ "1",
+		timepoint_weeks_since_start_of_RT == "wk2" ~ "2",
+		timepoint_weeks_since_start_of_RT == "wk3" ~ "3"
+	)) %>%
+	readr::type_convert() %>%
+	dplyr::select(patient_id_mskcc, timepoint_weeks_since_start_of_RT, measure = ADC)
+p_adc = p_adc %>%
+	dplyr::mutate(measure = measure / (p_adc %>%
+					   dplyr::filter(timepoint_weeks_since_start_of_RT==0) %>%
+					   .[["measure"]]) - 1) %>%
+	dplyr::mutate(measure = ifelse(measure<0, 0, 2*measure)) %>%
+	dplyr::mutate(Is_ctDNA = "Not Applicable", assay = "ADC")
+
+plot_ = p_mrd %>%
+	dplyr::bind_rows(p_hpv) %>%
+	dplyr::bind_rows(p_mri) %>%
+	dplyr::bind_rows(p_adc) %>%
+	dplyr::mutate(measure = measure * 100) %>%
+	dplyr::mutate(assay = factor(assay, levels = c("PCM", "HPV", "MRI", "ADC"), ordered = TRUE)) %>%
+	ggplot(aes(x = timepoint_weeks_since_start_of_RT, y = measure, shape = Is_ctDNA, color = assay)) +
+	geom_line(mapping = aes(x = timepoint_weeks_since_start_of_RT, y = measure, color = assay),
+		  stat = "identity", size = 1.25, alpha = .75, inherit.aes = FALSE) +
+	geom_point(stat = "identity", size = 4, fill = "white") +
+	scale_shape_manual(values = c(21, 25, 22)) +
+	scale_color_brewer(type = "qual", palette = 7) +
+	scale_x_continuous(breaks = 0:3,
+			   labels = c("Pre-treat\n-ment", "Week 1", "Week 2", "Week 3")) +
+	scale_y_continuous(limits = c(-2, 105),
+			   breaks = c(0, 25, 50, 75, 100),
+			   labels = c(100, 75, 50, 25, 0),
+			   sec.axis = sec_axis(trans = ~., name = "Relative Volume and ADC\nIncrease from Baseline (%)\n",
+			  		       breaks = c(0, 20, 40, 60, 80, 100), labels = c(0, 20, 40, 60, 80, 100)/2)) +
+	xlab("") +
+	ylab("Relative Decrease\nfrom Baseline (%)\n") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20)),
+	      axis.text.x = element_text(margin = margin(t = 7), size = 12),
+	      axis.text.y = element_text(size = 12)) +
+	guides(color = guide_legend(title = "Assay Modality", order = 1),
+	       shape = guide_legend(title = "ctDNA Status", order = 2))
+
+pdf(file = "../res/CTMS-30_MRI_ADC_MRD_HPV_Combined.pdf", width = 7.5, height = 3.5)
 print(plot_)
 dev.off()
 
@@ -399,40 +563,46 @@ smry_mri = clinical %>%
 # Absolute MRI volume wk1, wk2, wk3, wk5
 #==================================================
 plot_ = smry_af %>%
-	dplyr::mutate(wk3 = wk3/`Pre-treatment`) %>%
-	dplyr::mutate(q4 = case_when(
-		wk3 >= quantile(wk3, .75, na.rm=TRUE) ~ "4th",
-		wk3 >= quantile(wk3, .5, na.rm=TRUE) & wk3 < quantile(wk3, .75, na.rm=TRUE) ~ "3rd",
-		wk3 >= quantile(wk3, .25, na.rm=TRUE) & wk3 < quantile(wk3, .5, na.rm=TRUE) ~ "2nd",
-		wk3 < quantile(wk3, .25, na.rm=TRUE) ~ "1st",
+	dplyr::mutate(wk2 = wk2/`Pre-treatment`) %>%
+	dplyr::mutate(q2 = case_when(
+		wk2 >= 1 ~ "Increasing",
+		wk2 < 1 ~ "Decreasing",
 		TRUE ~"NA"
 	)) %>%
-	dplyr::select(patient_id_mskcc, q4) %>%
+	dplyr::select(patient_id_mskcc, q2) %>%
 	dplyr::full_join(smry_mri, by = "patient_id_mskcc") %>%	
-	reshape2::melt(id.vars = c("patient_id_mskcc", "q4"), variable.name = "week", value.name = "MRI") %>%
+	reshape2::melt(id.vars = c("patient_id_mskcc", "q2"), variable.name = "week", value.name = "MRI") %>%
 	readr::type_convert() %>%
 	tidyr::drop_na() %>%
-	ggplot(aes(x = week, y = MRI, shape = q4, color = q4)) +
+	ggplot(aes(x = q2, y = MRI/1000, shape = week, color = week)) +
 	geom_boxplot(stat = "boxplot", outlier.shape = NA, color = "black") +
 	geom_jitter(stat = "identity", width = .1, height = 0, fill = "white", size = 3, alpha = .95) +
-	scale_shape_manual(values = c("1st" = 21, "2nd" = 22, "3rd" = 23, "4th" = 24)) +
-	scale_color_manual(values = c("1st" = "#1b9e77", "2nd" = "#d95f02", "3rd" = "#7570b3", "4th" = "#e7298a")) +
-	scale_x_discrete(breaks = c("Pre-treatment", "wk1", "wk2", "wk3"),
-			 labels = c("0", "1", "2", "3")) +
-	scale_y_continuous(limits = c(0, 5E4),
-			   labels = scientific_10) +
-
-	xlab("Weeks") +
+	scale_shape_manual(values = c("Pre-treatment" = 21, "wk1" = 22, "wk2" = 23, "wk3" = 24)) +
+	scale_color_manual(values = c("Pre-treatment" = "#1b9e77", "wk1" = "#d95f02", "wk2" = "#7570b3", "wk3" = "#e7298a")) +
+	scale_x_discrete(breaks = c("Decreasing", "Increasing"),
+			 labels = c("-ve", "+ve")) +
+	scale_y_continuous(limits = c(0, 6E1),
+			   breaks = c(0, 10, 20, 30, 40, 50),
+			   labels = c(0, 10, 20, 30, 40, 50)) +
+	geom_signif(mapping = aes(x = q2, y = MRI/1000),
+		    stat = "signif",
+		    comparisons = list(c("Decreasing", "Increasing")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "greater", exact = FALSE),
+		    y_position = 52, vjust = -.25, textsize = 3.25,
+		    tip_length = 0.01, inherit.aes = FALSE) +
+	xlab(expression(Delta[Week2 - Pre-treatment]~"ctDNA Fraction")) +
 	ylab(expression("MRI Volume "(cm^3))) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
-	      axis.text.x = element_text(margin = margin(t = 7), size = 12),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 9),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(margin = margin(t = 7), size = 9),
 	      axis.text.y = element_text(size = 12),
 	      strip.background = element_blank()) +
 	guides(color = FALSE, shape = FALSE) +
-	facet_wrap(~q4, nrow = 1)
+	facet_wrap(~week, nrow = 1)
+	
 
-pdf(file = "../res/ctDNA_Clearance_MRI_Volume_All_weeks.pdf", width = 2.85*1.75, height = 2.5*1.5)
+pdf(file = "../res/ctDNA_Clearance_MRI_Volume_All_weeks_Pos_Neg.pdf", width = 4.5, height = 3.25)
 print(plot_)
 dev.off()

@@ -65,7 +65,9 @@ BroadGeneSet_SSGSEA = gsva(expr = ft_eset$eset,
 			   parallel.sz = 8,
 			   verbose = TRUE)
 
+#==================================================
 # ctDNA +ve | ctDNA -ve
+#==================================================
 response = ft_eset$eset$Is_ctDNA
 status = ifelse(response=="+ve", 1, NA)
 status = ifelse(response=="-ve", 0, status)

@@ -28,13 +28,14 @@ TCGA@data = TCGA@data %>%
 TCGA@clinical.data = TCGA@clinical.data %>%
 		     dplyr::left_join(readr::read_tsv(file = url_tcga_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 				      readr::type_convert() %>%
-				      dplyr::rename(Tumor_Sample_Barcode_min = Barcode) %>%
+				      dplyr::rename(Tumor_Sample_Barcode_min = Barcode,
+						    HPV_Status = Final_HPV_Status) %>%
 				      dplyr::mutate(is_selected = 1), by = "Tumor_Sample_Barcode_min")
 
 TCGA = subsetMaf(TCGA, clinQuery = "!is.na(is_selected)")
 
 color_palette_hpv = c("#7bccc4", "#0868ac")
-names(color_palette_hpv) = unique(TCGA@clinical.data$Final_HPV_Status)
+names(color_palette_hpv) = unique(TCGA@clinical.data$HPV_Status)
 
 pdf(file = "../res/OncoPrint_Cancer_Genes_TCGA_HPV_Negative_Positive.pdf", width = 4.75, height = 4)
 oncoplot(maf = TCGA,
@@ -50,11 +51,12 @@ oncoplot(maf = TCGA,
 	 showTitle = FALSE,
 	 gene_mar = 7,
 	 showTumorSampleBarcodes = FALSE,
-	 clinicalFeatures = c("Final_HPV_Status"),
+	 clinicalFeatures = c("HPV_Status"),
 	 cohortSize = nrow(TCGA@clinical.data),
 	 removeNonMutated = FALSE,
 	 fill = TRUE,
-	 annotationColor = list(Final_HPV_Status = color_palette_hpv))
+	 annotationColor = list(HPV_Status = color_palette_hpv),
+	 anno_height = .75)
 dev.off()
 
 #==================================================
@@ -62,7 +64,10 @@ dev.off()
 #==================================================
 clinical = readr::read_tsv(file = url_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 	   readr::type_convert() %>%
-	   dplyr::rename(Tumor_Sample_Barcode = tumor_id_wes) %>%
+	   dplyr::rename(Tumor_Sample_Barcode = tumor_id_wes,
+			 T_Stage = t_stage,
+			 N_Stage = n_stage,
+			 Smoking_Status = smoking_category_yes_never) %>%
 	   tidyr::drop_na(Tumor_Sample_Barcode) %>%
 	   dplyr::select(-additional_crt_post_neck_dissection) %>%
 	   dplyr::mutate(Final_HPV_Status = "Positive") %>%
@@ -72,7 +77,16 @@ mutation_smry = maftools::read.maf(maf = url_tumor_variants, clinical = clinical
 
 mutation_smry = subsetMaf(mutation_smry, clinQuery = "!is.na(is_selected)")
 
-pdf(file = "../res/OncoPrint_Cancer_Genes_30Gy_HPV_Positive.pdf", width = 2.75, height = 4)
+color_palette_t = c("#f0f9e8", "#bae4bc", "#2b8cbe")
+names(color_palette_t) = unique(mutation_smry@clinical.data$T_Stage)
+
+color_palette_n = c("#f0f9e8", "#bae4bc", "#7bccc4", "#2b8cbe")
+names(color_palette_n) = unique(mutation_smry@clinical.data$N_Stage)
+
+color_palette_s = c("#f0f9e8", "#bae4bc")
+names(color_palette_s) = unique(mutation_smry@clinical.data$Smoking_Status)
+
+pdf(file = "../res/OncoPrint_Cancer_Genes_30Gy_HPV_Positive.pdf", width = 2.75, height = 4.5)
 oncoplot(maf = mutation_smry,
 	 genes = Hugo_Symbols,
 	 keepGeneOrder = TRUE,
@@ -87,11 +101,14 @@ oncoplot(maf = mutation_smry,
 	 showTitle = FALSE,
 	 gene_mar = 7,
 	 showTumorSampleBarcodes = FALSE,
-	 clinicalFeatures = c("Final_HPV_Status"),
+	 clinicalFeatures = c("T_Stage", "N_Stage", "Smoking_Status"),
 	 cohortSize = nrow(mutation_smry@clinical.data),
 	 removeNonMutated = FALSE,
 	 fill = TRUE,
-	 annotationColor = list(Final_HPV_Status = color_palette_hpv))
+	 annotationColor = list(T_Stage = color_palette_t,
+			        N_Stage = color_palette_n,
+			        Smoking_Status = color_palette_s),
+	anno_height = 1.5)
 dev.off()
 
 #==================================================
@@ -252,14 +269,14 @@ plot_ = Percent_Neg %>%
 	scale_color_brewer(type = "qual", palette = 6) +
 	scale_linetype_manual(values = c(1, 3)) +
 	xlab("Number of Variants") +
-	ylab("Fraction of Samples (%)") +
+	ylab("Fraction of Patients (%)") +
 	scale_x_continuous(limits = c(1, 10),
 			   breaks = 1:10,
 			   labels = 1:10) +
 	scale_y_continuous() +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12)) +
 	guides(color = guide_legend(override.aes = list(shape = 21, fill = "white")))
@@ -360,14 +377,14 @@ plot_ = Percent_Pos %>%
 	geom_point(stat = "identity", shape = 21, fill = "white", size = 2.5) +
 	scale_color_brewer(type = "qual", palette = 6) +
 	xlab("Number of Variants") +
-	ylab("Fraction of Samples (%)") +
+	ylab("Fraction of Patients (%)") +
 	scale_x_continuous(limits = c(1, 10),
 			   breaks = 1:10,
 			   labels = 1:10) +
 	scale_y_continuous(limits = c(1, 99)) +
 	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20)),
-	      axis.title.y = element_text(margin = margin(r = 20)),
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
 	      axis.text.x = element_text(size = 12),
 	      axis.text.y = element_text(size = 12))
 
