@@ -349,9 +349,9 @@ plot_ = data_ %>%
 			 labels = c("Low", "High")) +
 	scale_y_log10(limits = c(1E4, 1E8)/1000,
 		      breaks = c(1E4, 1E5, 1E6, 1E7)/1000,
-		      labels = scientific_10) +
+		      labels = scientific_10(c(1E2, 1E3, 1E4, 1E5)/1000)) +
 	xlab("Risk group") +
-	ylab("MRI Volume (cm3)") +
+	ylab(expression("MRI Volume "(cm^3))) +
 	geom_signif(stat = "signif",
 		    comparisons = list(c("0", "1")),
 		    test = "wilcox.test",
