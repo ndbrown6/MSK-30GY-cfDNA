@@ -607,6 +607,62 @@ data_ = idx_metrics_ft %>%
 
 smry_reads = summary(lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af, -hypoxia)))
 smry_af = summary(lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia, -hpv_copynumber)))
+aic_af = MASS::stepAIC(object = lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia, -hpv_copynumber)), direction = "backward")
+
+aic_af = update(aic_af, mean_af ~ . -cfdna_concentration)
+aic_af = update(aic_af, mean_af ~ . -t_stage)
+aic_af = update(aic_af, mean_af ~ . -ssGSEA_necrosis_neg)
+aic_af = update(aic_af, mean_af ~ . -ssGSEA_necrosis_pos)
+aic_af = update(aic_af, mean_af ~ . -tumor_volume)
+
+variables_filtered = c("All",
+		       "n_stage",
+		       "ssGSEA_apoptosis",
+		       "smoking_status",
+		       "baseline_hypoxia",
+		       "tumor_purity",
+		       "ssGSEA_mitosis",
+		       "cfdna_concentration",
+		       "t_stage",
+		       "ssGSEA_necrosis_neg",
+		       "ssGSEA_necrosis_pos",
+		       "tumor_volume")
+extracted_aic = vector(mode = "numeric", length = length(variables_filtered))
+names(extracted_aic) = variables_filtered
+extracted_aic["All"] = 5.47
+extracted_aic["n_stage"] = 1.36
+extracted_aic["ssGSEA_apoptosis"] = -0.63
+extracted_aic["smoking_status"] = -2.57
+extracted_aic["baseline_hypoxia"] = -4.45
+extracted_aic["tumor_purity"] = -6.33
+extracted_aic["ssGSEA_mitosis"] = -8.09
+extracted_aic["cfdna_concentration"] = -7.61
+extracted_aic["t_stage"] = -7.71
+extracted_aic["ssGSEA_necrosis_neg"] = -6.91
+extracted_aic["ssGSEA_necrosis_pos"] = -4.9
+extracted_aic["tumor_volume"] = 5.48
+
+plot_ = dplyr::tibble(variables = variables_filtered,
+		      aic = extracted_aic) %>%
+	dplyr::mutate(index = 1:n()) %>%
+	ggplot(aes(x = index, y = aic)) +
+	geom_line(stat = "identity", size = .95) +
+	geom_point(stat = "identity", color = "black", fill = "white", shape = 21, size = 3) +
+	scale_x_continuous(breaks = 1:length(variables_filtered),
+			   labels = paste0("- ", variables_filtered, " ", length(variables_filtered):1)) +
+	scale_y_continuous() +
+	xlab("") +
+	ylab("AIC") +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 9, angle = 90, vjust = 0.5, hjust=1),
+	      axis.text.y = element_text(size = 12))
+
+pdf(file = "../res/Linear_Regression_Step_AIC_Mean_AF_Maxi.pdf", width = 3.35, height = 4)
+print(plot_)
+dev.off()
+
 
 plot_ = smry_reads$coefficients %>%
 	as.data.frame() %>%
