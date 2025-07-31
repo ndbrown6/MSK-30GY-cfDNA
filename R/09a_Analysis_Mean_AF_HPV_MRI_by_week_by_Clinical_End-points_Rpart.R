@@ -351,6 +351,12 @@ p1 = wilcox.test(x = Test_Error$`ctDNA Fraction\n+ MRI Volume`,
 p2 = wilcox.test(x = Test_Error$`ctDNA Fraction\n+ MRI Volume`,
 		 y = Test_Error$`Absolute MRI\nVolume`)$p.value
 
+t1 = t.test(x = Test_Error$`ctDNA Fraction\n+ MRI Volume`,
+	    y = Test_Error$`Absolute ctDNA\nFraction`, conf.level = .95)
+
+t2 = t.test(x = Test_Error$`ctDNA Fraction\n+ MRI Volume`,
+		 y = Test_Error$`Absolute MRI\nVolume`, conf.level = .95)
+
 plot_ = Test_Error %>%
 	dplyr::as_tibble() %>%
 	reshape2::melt() %>%

@@ -290,10 +290,21 @@ smry_ = test_ %>%
 	dplyr::arrange(index) %>%
 	dplyr::mutate(patient_id_mskcc = factor(patient_id_mskcc, levels = unique(patient_id_mskcc), ordered = TRUE))
 
-
 if (!file.exists("../res/Posterior_Probability_ALL.txt")) {
 	smry_ %>%
 	dplyr::select(-index) %>%
 	readr::write_tsv(, path = "../res/Posterior_Probability_ALL.txt", append = FALSE, col_names = TRUE)
 }
 
+smry_ %>%
+dplyr::filter(!(sample_name %in% smry_ft$sample_name)) %>%
+dplyr::group_by(Is_ctDNA) %>%
+dplyr::summarize(n = n())
+
+smry_ %>%
+dplyr::filter(!(sample_name %in% smry_ft$sample_name)) %>%
+dplyr::left_join(mrd_smry %>%
+	         dplyr::mutate(sample_name = gsub(pattern = "EP-D1-D1", replacement = "", x = Sample_ID_Archer, fixed = TRUE)) %>%
+		 dplyr::select(sample_name, `MRD-Landmark_Result`), by = "sample_name") %>%
+dplyr::group_by(Is_ctDNA, `MRD-Landmark_Result`) %>%
+dplyr::summarize(n = n())

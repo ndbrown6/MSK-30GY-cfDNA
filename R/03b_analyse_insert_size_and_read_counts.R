@@ -293,7 +293,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
 	geom_jitter(stat = "identity", width = .15, height = 0, shape = 21, alpha = .85, size = 3, color = "#1b9e77", fill = "white") +
 	scale_x_discrete(breaks = c("FN", "FP"),
-			 labels = c("\nMRD +ve/\nHPV -ve", "\nMRD -ve/\nHPV +ve")) +
+			 labels = c("\nPCM +ve/\nHPV -ve", "\nPCM -ve/\nHPV +ve")) +
 	scale_y_continuous(limits = c(0, 300),
 			   breaks = seq(0, 300, by = 50),
 			   labels = seq(0, 300, by = 50)) +
@@ -337,7 +337,7 @@ plot_ = readr::read_tsv(file = "../res/Posterior_Probability_ALL.txt", col_names
 	geom_boxplot(stat = "boxplot", outlier.shape = NA) +
 	geom_jitter(stat = "identity", width = .15, height = 0, shape = 21, alpha = .85, size = 3, color = "#1b9e77", fill = "white") +
 	scale_x_discrete(breaks = c("TN", "TP"),
-			 labels = c("\nMRD -ve/\nHPV -ve", "\nMRD +ve/\nHPV +ve")) +
+			 labels = c("\nPCM -ve/\nHPV -ve", "\nPCM +ve/\nHPV +ve")) +
 	scale_y_continuous(limits = c(0, 300),
 			   breaks = seq(0, 300, by = 50),
 			   labels = seq(0, 300, by = 50)) +
@@ -606,7 +606,7 @@ data_ = idx_metrics_ft %>%
         as.data.frame()
 
 smry_reads = summary(lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af, -hypoxia)))
-smry_af = summary(lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia)))
+smry_af = summary(lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia, -hpv_copynumber)))
 
 plot_ = smry_reads$coefficients %>%
 	as.data.frame() %>%
