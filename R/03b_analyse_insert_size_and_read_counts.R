@@ -607,6 +607,7 @@ data_ = idx_metrics_ft %>%
 
 smry_reads = summary(lm(formula = aligned_reads ~ ., data = data_ %>% dplyr::select(-mean_af, -hypoxia)))
 smry_af = summary(lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia, -hpv_copynumber)))
+
 aic_af = MASS::stepAIC(object = lm(formula = mean_af ~ ., data = data_ %>% dplyr::select(-aligned_reads, -hypoxia, -hpv_copynumber)), direction = "backward")
 
 aic_af = update(aic_af, mean_af ~ . -cfdna_concentration)
