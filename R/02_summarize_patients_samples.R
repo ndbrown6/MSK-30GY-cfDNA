@@ -66,7 +66,7 @@ dplyr::summarize(n = n()) %>%
 dplyr::ungroup() %>%
 dplyr::mutate(patient_number = 1:n()) %>%
 dplyr::select(patient_number, patient_id = patient_id_mskcc, n) %>%
-pander::pander(cpation = "Number of unique patients with MRD assay")
+pander::pander(caption = "Number of unique patients with MRD assay")
 
 #==================================================
 # Number of samples per patient
