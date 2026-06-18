@@ -1,4 +1,4 @@
-# Real-time multimodal assessment of ctDNA and imaging dynamics enables adaptive treatment in HPV-related oropharyngeal cancer 
+# Intra-treatment ctDNA and imaging dynamics identify candidates for adaptive therapy in HPV-related oropharyngeal cancer   
 
 ## Diplas *et al.*
 ### https://someurl
