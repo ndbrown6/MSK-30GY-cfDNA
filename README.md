@@ -18,6 +18,7 @@ cd MSK-30GY-cfDNA/R
 ```
 library("rmarkdown")
 rmarkdown::render(input = "Figure_1__oncoplot_tcga_hnsc.Rmd", output_dir = "../res/")
+rmarkdown::render(input = "Figure_2__linear_discriminant_analysis.Rmd", output_dir = "../res/")
 ```
 
 #### R session info
