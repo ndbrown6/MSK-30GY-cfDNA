@@ -216,6 +216,9 @@ insert_size_smry_ft = insert_size_smry_ft %>%
 				      dplyr::ungroup() %>%
 				      dplyr::right_join(insert_size_smry_ft, by = c("SAMPLE_NAME", "FRAGMENT_LENGTH")) %>%
 				      dplyr::mutate(`%_READS` = READ_COUNT/TOTAL_READS)
+				      
+insert_metrics_by_gene = readr::read_tsv(file = url_insert_metrics_by_gene, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+						 readr::type_convert()
 
 idx_metrics_ft = readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())) %>%
 		      	 readr::type_convert()
@@ -316,7 +319,7 @@ smry_ft = dplyr::bind_rows(smry_t_pos %>%
 
 ```{r plot_30gy_number_reads_pairs, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.55, fig.cap = '<br/>**Figure 2c** '}
 
-plot_ = insert_smry %>%
+plot_ = insert_metrics_by_gene %>%
 		dplyr::rename(sample_name = SAMPLE_NAME) %>%
 		dplyr::filter(TARGET_REGION != "NC001526.4:3372-4794") %>%
 		dplyr::filter(grepl("NC001526.4", TARGET_REGION, fixed = TRUE)) %>%
@@ -369,9 +372,9 @@ print(plot_)
 <br/>
 <br/>
 
-```{r plot_30gy_mean_insert_size, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Figure S2b** '}
+```{r plot_30gy_mean_insert_size, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Supplementary Figure S2b** '}
 
-plot_ = insert_smry %>%
+plot_ = insert_metrics_by_gene %>%
 		dplyr::rename(sample_name = SAMPLE_NAME) %>%
 		dplyr::filter(TARGET_REGION != "NC001526.4:3372-4794") %>%
 		dplyr::filter(grepl("NC001526.4", TARGET_REGION, fixed = TRUE)) %>%
@@ -469,7 +472,7 @@ tumor_vars = readr::read_tsv(file = url_tumor_variants, col_names = TRUE, col_ty
 <br/>
 <br/>
 
-```{r plot_30gy_barplot, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Figure S2a** '}
+```{r plot_30gy_barplot, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Supplementary Figure S2a** '}
 
 plot_ = manifest %>%
 		dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%

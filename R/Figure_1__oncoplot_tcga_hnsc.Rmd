@@ -430,7 +430,7 @@ names(color_palette_s) = unique(mutation_smry@clinical.data$Smoking_Status)
 
 ```
 
-```{r plot_30gy_oncoprint, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 3.5, fig.cap = '<br/>**Figure S1a** Recurrrent somatic variants in 30Gy head and neck HPV positive cancers'}
+```{r plot_30gy_oncoprint, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 3.5, fig.cap = '<br/>**Supplementary Figure S1a** Recurrrent somatic variants in 30Gy head and neck HPV positive cancers'}
 
 oncoplot(maf = mutation_smry,
 	 genes = Hugo_Symbols,
@@ -542,7 +542,7 @@ for (i in 1:nrow(Percent_Pos)) {
 <br/>
 <br/>
 
-```{r plot_30gy_saturation_curve, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 5, fig.cap = '<br/>**Figure S1b** Fraction of patients captured in 30Gy head and neck HPV positive cancers'}
+```{r plot_30gy_saturation_curve, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S1b** Fraction of patients captured in 30Gy head and neck HPV positive cancers'}
 
 plot_ = Percent_Pos %>%
 		dplyr::mutate(number_variants = as.numeric(number_variants)) %>%
