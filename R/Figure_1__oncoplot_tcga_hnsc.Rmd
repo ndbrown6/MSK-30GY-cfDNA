@@ -9,389 +9,213 @@ output:
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
-```{r, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
-suppressPackageStartupMessages(library("gdata"))
-suppressPackageStartupMessages(library("ggplot2"))
-suppressPackageStartupMessages(library("readr"))
-suppressPackageStartupMessages(library("data.table"))
-suppressPackageStartupMessages(library("dplyr"))
-suppressPackageStartupMessages(library("reshape2"))
-suppressPackageStartupMessages(library("magrittr"))
-suppressPackageStartupMessages(library("tidyr"))
-suppressPackageStartupMessages(library("fuzzyjoin"))
-suppressPackageStartupMessages(library("pander"))
-suppressPackageStartupMessages(library("ggsignif"))
-suppressPackageStartupMessages(library("ggrepel"))
-suppressPackageStartupMessages(library("ggforce"))
-suppressPackageStartupMessages(library("ggord"))
-suppressPackageStartupMessages(library("ggpubr"))
-suppressPackageStartupMessages(library("ggridges"))
-suppressPackageStartupMessages(library("gghalves"))
-suppressPackageStartupMessages(library("cowplot"))
-suppressPackageStartupMessages(library("viridis"))
-suppressPackageStartupMessages(library("superheat"))
-suppressPackageStartupMessages(library("ComplexHeatmap"))
-suppressPackageStartupMessages(library("grid"))
-suppressPackageStartupMessages(library("gridExtra"))
-suppressPackageStartupMessages(library("drc"))
-suppressPackageStartupMessages(library("preseqR"))
-suppressPackageStartupMessages(library("foreach"))
-suppressPackageStartupMessages(library("parallel"))
-suppressPackageStartupMessages(library("doMC"))
-suppressPackageStartupMessages(library("maftools"))
-suppressPackageStartupMessages(library("RColorBrewer"))
-suppressPackageStartupMessages(library("pROC"))
-suppressPackageStartupMessages(library("MASS"))
-suppressPackageStartupMessages(library("rpart"))
-suppressPackageStartupMessages(library("klaR"))
-suppressPackageStartupMessages(library("PMCMRplus"))
-suppressPackageStartupMessages(library("ellipse"))
-suppressPackageStartupMessages(library("ggbeeswarm"))
-suppressPackageStartupMessages(library("corrplot"))
-suppressPackageStartupMessages(library("org.Hs.eg.db"))
-suppressPackageStartupMessages(library("GSVA"))
-suppressPackageStartupMessages(library("GSVAdata"))
-suppressPackageStartupMessages(library("GSEABase"))
-suppressPackageStartupMessages(library("fgsea"))
-suppressPackageStartupMessages(library("genefilter"))
-suppressPackageStartupMessages(library("limma"))
-suppressPackageStartupMessages(library("sensemakr"))
-suppressPackageStartupMessages(library("Rtsne"))
-suppressPackageStartupMessages(library("ggdendro"))
-suppressPackageStartupMessages(library("rpart.plot"))
-suppressPackageStartupMessages(library("plyr"))
-suppressPackageStartupMessages(library("ipred"))
-suppressPackageStartupMessages(library("vip"))
-suppressPackageStartupMessages(library("e1071"))
-suppressPackageStartupMessages(library("TCGAmutations"))
-suppressPackageStartupMessages(library("party"))
-suppressPackageStartupMessages(library("partykit"))
-suppressPackageStartupMessages(library("ggparty"))
-suppressPackageStartupMessages(library("randomForest"))
-suppressPackageStartupMessages(library("survival"))
-suppressPackageStartupMessages(library("survminer"))
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("magrittr")
+  library("maftools")
+  library("RColorBrewer")
+  library("TCGAmutations")
+})
 
-registerDoMC(8)
-
-FRAGMENT_LENGTH_THRESHOLD = 37
-N_TILES = 250
-USE_ALL = TRUE
-
-url_manifest <- "../data/manifest.txt"
-url_primers <- "../data/HPV_primers.bed"
-url_bed_file <- "../data/hpv_31_33_35H_16_18.bed"
-url_gene_coords <- "../data/gene_coords.txt"
-url_preanalytical_conidtions <- "../data/pre-analytical_conditions.txt"
-url_mrd_summary <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
-url_mutation_summary <- "../data/mutation_summary.maf"
-url_hpv_type <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
-url_no_node_dissection <- "../data/patients_0_nodal_dissection.txt"
-url_clinical <- "../data/clinical.txt"
-url_tumor_variants <- "../data/all_variants.txt"
-url_hotspots <- "../data/hotspots.txt"
-url_aln_metrics <- "../data/aln_metrics.txt"
-url_aln_metrics_ft <- "../data/aln_metrics_ft.txt"
-url_hs_metrics <- "../data/hs_metrics.txt"
-url_hs_metrics_ft <- "../data/hs_metrics_ft.txt"
-url_hs_target_metrics <- "../data/hs_metrics_target.txt"
-url_hs_target_metrics_ft <- "../data/hs_metrics_target_ft.txt"
-url_idx_metrics <- "../data/idx_metrics.txt"
-url_idx_metrics_ft <- "../data/idx_metrics_ft.txt"
-url_insert_metrics <- "../data/insert_metrics.txt"
-url_insert_metrics_ft <- "../data/insert_metrics_ft.txt"
-url_insert_metrics_by_gene <- "../data/insert_metrics_by_gene.txt"
-url_insert_summary <- "../data/insert_summary.txt"
-url_insert_summary_ft <- "../data/insert_summary_ft.txt"
-url_gatk_summary <- "../data/gatk_summary.txt"
-url_tpm_by_gene <- "../data/tpm_by_gene.txt"
-
+# --- Data paths ---
 url_tcga_clinical <- "../data/clinical_tcga_hnsc_mc3.txt"
 
 url_gene_list <- list(
-	"foundation_one" = "../data/Foundation_One_Liquid_CDx.txt",
-	"guardant_360" = "../data/Guardant_360_CDx.txt",
-	"msk_accessv1" = "../data/MSK-ACCESS-v2_0.txt"
+  "foundation_one" = "../data/Foundation_One_Liquid_CDx.txt",
+  "guardant_360"   = "../data/Guardant_360_CDx.txt",
+  "msk_accessv1"   = "../data/MSK-ACCESS-v2_0.txt"
 )
 
-target_contigs <- c("HPV-16" = "NC001526.4",
-		    "HPV-18" = "NC001357.1",
-		    "HPV-31" = "J04353.1",
-		    "HPV-33" = "M12732.1",
-		    "HPV-35" = "X74477.1")
-
-'scientific_10' <- function(x) {
-	parse(text=gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), , fixed = TRUE))
+# --- Helper functions ---
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
 }
 
-'scientific_1e' <- function(x) {
-	parse(text=gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), , fixed = TRUE))
+scientific_1e <- function(x) {
+  parse(text = gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), fixed = TRUE))
 }
 
-'log_10' <- function(x) {
-	parse(text=gsub("+", "", gsub("e", " %.% 10^-", scales::scientific_format()(x)), fixed=TRUE))
+log_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^-", scales::scientific_format()(x)), fixed = TRUE))
 }
 
-
-'str_split' <- function(x, split, n) {
-	return(invisible(unlist(strsplit(x, split = split))[n]))
+str_split_n <- function(x, split, n) {
+  return(invisible(unlist(strsplit(x, split = split))[n]))
 }
 
-'fGSEA' <- function(fold_change, gmt_file, pval = 1) {
-	set.seed(54321)
-	msig_db = fgsea::gmtPathways(gmt_file)
-	gsea = fgsea::fgsea(pathways = msig_db,
-			    stats = fold_change,
-			    minSize = 5,
-			    maxSize = 500,
-			    nperm = 10000) %>% 
-		dplyr::as_tibble() %>% 
-		dplyr::filter(padj < !!pval) %>% 
-		dplyr::arrange(desc(NES))
-	
-	return(invisible(gsea))
+fGSEA <- function(fold_change, gmt_file, pval = 1) {
+  set.seed(54321)
+  msig_db <- fgsea::gmtPathways(gmt_file)
+  gsea <- fgsea::fgsea(
+    pathways = msig_db,
+    stats    = fold_change,
+    minSize  = 5,
+    maxSize  = 500,
+    nperm    = 10000
+  ) %>%
+    dplyr::as_tibble() %>%
+    dplyr::filter(padj < !!pval) %>%
+    dplyr::arrange(desc(NES))
+  return(invisible(gsea))
 }
-
-'margin' <- ggplot2::margin
 ```
 
 ```{r load_tcga_data, eval = TRUE, include = FALSE}
 
-Hugo_Symbols = c("TP53", "FAT1", "CDKN2A", "PIK3CA",
-				 "NOTCH1", "KMT2D", "NSD1", "CASP8",
-				 "NFE2L2", "AJUBA", "FBXW7", "TGFBR2",
-				 "HRAS", "CUL3", "RB1", "PTEN", "PIK3R1")
+Hugo_Symbols <- c(
+  "TP53", "FAT1", "CDKN2A", "PIK3CA",
+  "NOTCH1", "KMT2D", "NSD1", "CASP8",
+  "NFE2L2", "AJUBA", "FBXW7", "TGFBR2",
+  "HRAS", "CUL3", "RB1", "PTEN", "PIK3R1"
+)
 
-vc_cols = RColorBrewer::brewer.pal(n = 8, name = "Set1")
-names(vc_cols) = c('Frame_Shift_Del', 'Missense_Mutation',
-				   'Nonsense_Mutation', 'Multi_Hit',
-				   'Frame_Shift_Ins', 'In_Frame_Ins',
-				   'Splice_Site', 'In_Frame_Del')
-
+vc_cols <- RColorBrewer::brewer.pal(n = 8, name = "Set1")
+names(vc_cols) <- c(
+  "Frame_Shift_Del", "Missense_Mutation",
+  "Nonsense_Mutation", "Multi_Hit",
+  "Frame_Shift_Ins", "In_Frame_Ins",
+  "Splice_Site", "In_Frame_Del"
+)
 
 TCGAmutations::tcga_load(study = "HNSC")
 
-tcga_hnsc@data = tcga_hnsc@data %>%
-			     dplyr::select(which(!duplicated(colnames(.))))
+tcga_hnsc@data <- tcga_hnsc@data %>%
+  dplyr::select(which(!duplicated(colnames(.))))
 
-tcga_hnsc@clinical.data = tcga_hnsc@clinical.data %>%
-						  dplyr::left_join(readr::read_tsv(file = url_tcga_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-									       readr::type_convert() %>%
-									       dplyr::rename(Tumor_Sample_Barcode = Barcode,
-														 HPV_Status = Final_HPV_Status) %>%
-									       dplyr::mutate(is_selected = 1), by = "Tumor_Sample_Barcode")
+tcga_clinical_extra <- readr::read_tsv(
+  file      = url_tcga_clinical,
+  col_names = TRUE,
+  col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(
+    Tumor_Sample_Barcode = Barcode,
+    HPV_Status           = Final_HPV_Status
+  ) %>%
+  dplyr::mutate(is_selected = 1)
 
-tcga_hnsc = subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected)")
+tcga_hnsc@clinical.data <- tcga_hnsc@clinical.data %>%
+  dplyr::left_join(tcga_clinical_extra, by = "Tumor_Sample_Barcode")
 
-color_palette_hpv = c("#7bccc4", "#0868ac")
-names(color_palette_hpv) = unique(tcga_hnsc@clinical.data$HPV_Status)
+tcga_hnsc <- subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected)")
 
+color_palette_hpv <- c("#7bccc4", "#0868ac")
+names(color_palette_hpv) <- unique(tcga_hnsc@clinical.data$HPV_Status)
+
+HPV_Neg <- subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected) & HPV_Status == 'Negative'")
+HPV_Pos <- subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected) & HPV_Status == 'Positive'")
 ```
 
 ```{r plot_tcga_oncoprint, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 8, fig.cap = '<br/>**Figure 1b** Oncoprint of somatic mutations in head and neck cancers from TCGA, stratified by HPV status. In HPV-positive tumors, recurrent somatic mutations are few, with only PIK3CA hotspot mutations in 36% of cases.'}
 
-oncoplot(maf = tcga_hnsc,
-		 genes = Hugo_Symbols,
-		 keepGeneOrder = TRUE,
-		 GeneOrderSort = FALSE,
-		 sortByMutation = TRUE,
-		 sortByAnnotation = TRUE,
-		 colors = vc_cols,
-		 bgCol = "#EEEDEB",
-		 drawRowBar = FALSE,
-		 drawColBar = FALSE,
-		 showTitle = FALSE,
-		 gene_mar = 7,
-		 showTumorSampleBarcodes = FALSE,
-		 clinicalFeatures = c("HPV_Status"),
-		 cohortSize = nrow(tcga_hnsc@clinical.data),
-		 removeNonMutated = FALSE,
-		 fill = TRUE,
-		 annotationColor = list(HPV_Status = color_palette_hpv),
-		 anno_height = .75,
-		 legend_height = .5)
-		 
+oncoplot(
+  maf                  = tcga_hnsc,
+  genes                = Hugo_Symbols,
+  keepGeneOrder        = TRUE,
+  GeneOrderSort        = FALSE,
+  sortByMutation       = TRUE,
+  sortByAnnotation     = TRUE,
+  colors               = vc_cols,
+  bgCol                = "#EEEDEB",
+  drawRowBar           = FALSE,
+  drawColBar           = FALSE,
+  showTitle            = FALSE,
+  gene_mar             = 7,
+  showTumorSampleBarcodes = FALSE,
+  clinicalFeatures     = "HPV_Status",
+  cohortSize           = nrow(tcga_hnsc@clinical.data),
+  removeNonMutated     = FALSE,
+  fill                 = TRUE,
+  annotationColor      = list(HPV_Status = color_palette_hpv),
+  anno_height          = 0.75,
+  legend_height        = 0.5
+)
 ```
 
 ```{r saturation_curve_tcga, eval = TRUE, include = FALSE}
 
-TCGAmutations::tcga_load(study = "HNSC")
-
-tcga_hnsc@data = tcga_hnsc@data %>%
-				 dplyr::select(which(!duplicated(colnames(.))))
-				 
-tcga_hnsc@clinical.data = tcga_hnsc@clinical.data %>%
-					      dplyr::left_join(readr::read_tsv(file = url_tcga_clinical, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-									       readr::type_convert() %>%
-					 				       dplyr::rename(Tumor_Sample_Barcode = Barcode) %>%
-									       dplyr::mutate(is_selected = 1), by = "Tumor_Sample_Barcode")
-
-HPV_Neg = subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected) & Final_HPV_Status=='Negative'")
-HPV_Pos = subsetMaf(tcga_hnsc, clinQuery = "!is.na(is_selected) & Final_HPV_Status=='Positive'")
-
-# FoundationOne
-Percent_Neg = HPV_Neg@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["foundation_one"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
-
-Percent_Pos = HPV_Pos@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["foundation_one"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
-
-for (i in 1:nrow(Percent_Neg)) {
-	Percent_Neg$fraction_samples[i] = sum(Percent_Neg$number_samples[i:nrow(Percent_Neg)])/241 * 100
+# Helper: compute cumulative fraction of samples with >= i variants
+compute_saturation <- function(maf_obj, gene_list_url, n_total) {
+  maf_obj@data %>%
+    dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
+    dplyr::summarize(n = 1, .groups = "drop") %>%
+    dplyr::left_join(
+      readr::read_tsv(gene_list_url, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+        readr::type_convert() %>%
+        dplyr::mutate(Is_Present = 1),
+      by = "Hugo_Symbol"
+    ) %>%
+    dplyr::filter(!is.na(Is_Present)) %>%
+    dplyr::group_by(Tumor_Sample_Barcode) %>%
+    dplyr::summarize(n = n(), .groups = "drop") %>%
+    {table(.$n)} %>%
+    tibble::enframe(name = "number_variants", value = "number_samples") %>%
+    dplyr::mutate(
+      number_variants  = as.numeric(number_variants),
+      fraction_samples = purrr::map_dbl(
+        seq_len(n()),
+        ~ sum(number_samples[.x:n()]) / n_total * 100
+      )
+    )
 }
 
-for (i in 1:nrow(Percent_Pos)) {
-	Percent_Pos$fraction_samples[i] = sum(Percent_Pos$number_samples[i:nrow(Percent_Pos)])/36 * 100
-}
+n_neg <- nrow(HPV_Neg@clinical.data)
+n_pos <- nrow(HPV_Pos@clinical.data)
 
-plot_foundation = Percent_Neg %>%
-				  dplyr::mutate(HPV = "-ve") %>%
-				  dplyr::bind_rows(Percent_Pos %>%
-								   dplyr::mutate(HPV = "+ve")) %>%
-				  dplyr::mutate(number_variants = as.numeric(number_variants)) %>%
-				  dplyr::filter(number_variants<10) %>%
-				  dplyr::mutate(Assay = "FoudationOne CDx")
-		
-# Guardant360
-Percent_Neg = HPV_Neg@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["guardant_360"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
+plot_foundation <- dplyr::bind_rows(
+  compute_saturation(HPV_Neg, url_gene_list[["foundation_one"]], n_neg) %>% dplyr::mutate(HPV = "-ve"),
+  compute_saturation(HPV_Pos, url_gene_list[["foundation_one"]], n_pos) %>% dplyr::mutate(HPV = "+ve")
+) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "FoundationOne CDx")
 
-Percent_Pos = HPV_Pos@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["guardant_360"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
+plot_guardant <- dplyr::bind_rows(
+  compute_saturation(HPV_Neg, url_gene_list[["guardant_360"]], n_neg) %>% dplyr::mutate(HPV = "-ve"),
+  compute_saturation(HPV_Pos, url_gene_list[["guardant_360"]], n_pos) %>% dplyr::mutate(HPV = "+ve")
+) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "Guardant360 CDx")
 
-for (i in 1:nrow(Percent_Neg)) {
-	Percent_Neg$fraction_samples[i] = sum(Percent_Neg$number_samples[i:nrow(Percent_Neg)])/241 * 100
-}
-
-for (i in 1:nrow(Percent_Pos)) {
-	Percent_Pos$fraction_samples[i] = sum(Percent_Pos$number_samples[i:nrow(Percent_Pos)])/36 * 100
-}
-
-plot_guardant = Percent_Neg %>%
-				dplyr::mutate(HPV = "-ve") %>%
-				dplyr::bind_rows(Percent_Pos %>%
-								 dplyr::mutate(HPV = "+ve")) %>%
-				dplyr::mutate(number_variants = as.numeric(number_variants)) %>%
-				dplyr::filter(number_variants<10) %>%
-				dplyr::mutate(Assay = "Guardant360 CDx")
-
-# MSK-ACCESS v1
-Percent_Neg = HPV_Neg@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["msk_accessv1"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
-
-Percent_Pos = HPV_Pos@data %>%
-		      dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
-		      dplyr::summarize(n = 1) %>%
-		      dplyr::ungroup() %>%
-		      dplyr::left_join(readr::read_tsv(file = url_gene_list[["msk_accessv1"]], col_names = TRUE, col_types = cols(.default = col_character())) %>%
-						       readr::type_convert() %>%
-						       dplyr::mutate(Is_Present = 1), by = "Hugo_Symbol") %>%
-		      dplyr::filter(!is.na(Is_Present)) %>%
-		      dplyr::group_by(Tumor_Sample_Barcode) %>%
-		      dplyr::summarize(n = n()) %>%
-		      {table(.$n)} %>%
-		      tibble::enframe(name = "number_variants", value = "number_samples") %>%
-		      dplyr::mutate(fraction_samples = 0)
-
-for (i in 1:nrow(Percent_Neg)) {
-	Percent_Neg$fraction_samples[i] = sum(Percent_Neg$number_samples[i:nrow(Percent_Neg)])/241 * 100
-}
-
-for (i in 1:nrow(Percent_Pos)) {
-	Percent_Pos$fraction_samples[i] = sum(Percent_Pos$number_samples[i:nrow(Percent_Pos)])/36 * 100
-}
-
+plot_msk_access <- dplyr::bind_rows(
+  compute_saturation(HPV_Neg, url_gene_list[["msk_accessv1"]], n_neg) %>% dplyr::mutate(HPV = "-ve"),
+  compute_saturation(HPV_Pos, url_gene_list[["msk_accessv1"]], n_pos) %>% dplyr::mutate(HPV = "+ve")
+) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "MSK-ACCESS")
 ```
-
 <br/>
 <br/>
-<br/>
-
 ```{r plot_tcga_saturation_curve, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 5, fig.cap = '<br/>**Figure 1c** Comparison of commercially available targeted liquid biopsy assays, showing limited variant capture in HPV-positive head and neck cancers based on TCGA mutation profiles.'}
 
-plot_ = Percent_Neg %>%
-		dplyr::mutate(HPV = "-ve") %>%
-		dplyr::bind_rows(Percent_Pos %>%
-						 dplyr::mutate(HPV = "+ve")) %>%
-		dplyr::mutate(number_variants = as.numeric(number_variants)) %>%
-		dplyr::filter(number_variants<10) %>%
-		dplyr::mutate(Assay = "MSK-ACCESS") %>%
-		dplyr::bind_rows(plot_foundation) %>%
-		dplyr::bind_rows(plot_guardant) %>%
-		ggplot(aes(x = number_variants, y = fraction_samples, color = Assay, linetype = HPV, shape = HPV)) +
-		geom_line(stat = "identity", size = .75) +
-		geom_vline(xintercept = 3, linetype = 2, size = .5, color = "goldenrod3") +
-		geom_point(stat = "identity", fill = "white", size = 2.5) +
-		scale_shape_manual(values = c(21, NA)) +
-		scale_color_brewer(type = "qual", palette = 6) +
-		scale_linetype_manual(values = c(1, 3)) +
-		xlab("Number of Variants") +
-		ylab("Fraction of Patients (%)") +
-		scale_x_continuous(limits = c(1, 10),
-						   breaks = 1:10,
-						   labels = 1:10) +
-		scale_y_continuous() +
-		theme_classic() +
-		theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
-		      axis.title.y = element_text(margin = margin(r = 20), size = 12),
-		      axis.text.x = element_text(size = 12),
-		      axis.text.y = element_text(size = 12)) +
-		guides(color = guide_legend(override.aes = list(shape = 21, fill = "white")))
+plot_ <- dplyr::bind_rows(plot_msk_access, plot_foundation, plot_guardant) %>%
+  ggplot(aes(
+    x        = number_variants,
+    y        = fraction_samples,
+    color    = Assay,
+    linetype = HPV,
+    shape    = HPV
+  )) +
+  geom_line(stat = "identity", linewidth = 0.75) +
+  geom_vline(xintercept = 3, linetype = 2, linewidth = 0.5, color = "goldenrod3") +
+  geom_point(stat = "identity", fill = "white", size = 2.5) +
+  scale_shape_manual(values = c(21, NA)) +
+  scale_color_brewer(type = "qual", palette = 6) +
+  scale_linetype_manual(values = c(1, 3)) +
+  xlab("Number of Variants") +
+  ylab("Fraction of Patients (%)") +
+  scale_x_continuous(limits = c(1, 10), breaks = 1:10, labels = 1:10) +
+  scale_y_continuous() +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(override.aes = list(shape = 21, fill = "white")))
 
 print(plot_)
-
 ```

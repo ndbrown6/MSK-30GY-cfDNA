@@ -1,0 +1,180 @@
+---
+title: "Supplementary Figure S1 - Variant capture in the current cohort of HPV-associated OPC patients"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("tidyr")
+  library("magrittr")
+  library("maftools")
+  library("RColorBrewer")
+})
+
+# --- Data paths ---
+url_clinical       <- "../data/clinical.txt"
+url_tumor_variants <- "../data/all_variants.txt"
+
+url_gene_list <- list(
+  "foundation_one" = "../data/Foundation_One_Liquid_CDx.txt",
+  "guardant_360"   = "../data/Guardant_360_CDx.txt",
+  "msk_accessv1"   = "../data/MSK-ACCESS-v2_0.txt"
+)
+
+# --- Gene panel and mutation colour palette (shared with Figure 1) ---
+Hugo_Symbols <- c(
+  "TP53", "FAT1", "CDKN2A", "PIK3CA",
+  "NOTCH1", "KMT2D", "NSD1", "CASP8",
+  "NFE2L2", "AJUBA", "FBXW7", "TGFBR2",
+  "HRAS", "CUL3", "RB1", "PTEN", "PIK3R1"
+)
+
+vc_cols <- RColorBrewer::brewer.pal(n = 8, name = "Set1")
+names(vc_cols) <- c(
+  "Frame_Shift_Del", "Missense_Mutation",
+  "Nonsense_Mutation", "Multi_Hit",
+  "Frame_Shift_Ins", "In_Frame_Ins",
+  "Splice_Site", "In_Frame_Del"
+)
+
+# --- Helper: cumulative fraction of samples with >= i variants ---
+compute_saturation <- function(maf_obj, gene_list_url, n_total) {
+  maf_obj@data %>%
+    dplyr::group_by(Tumor_Sample_Barcode, Hugo_Symbol) %>%
+    dplyr::summarize(n = 1, .groups = "drop") %>%
+    dplyr::left_join(
+      readr::read_tsv(gene_list_url, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+        readr::type_convert() %>%
+        dplyr::mutate(Is_Present = 1),
+      by = "Hugo_Symbol"
+    ) %>%
+    dplyr::filter(!is.na(Is_Present)) %>%
+    dplyr::group_by(Tumor_Sample_Barcode) %>%
+    dplyr::summarize(n = n(), .groups = "drop") %>%
+    {table(.$n)} %>%
+    tibble::enframe(name = "number_variants", value = "number_samples") %>%
+    dplyr::mutate(
+      number_variants  = as.numeric(number_variants),
+      fraction_samples = purrr::map_dbl(
+        seq_len(n()),
+        ~ sum(number_samples[.x:n()]) / n_total * 100
+      )
+    )
+}
+```
+
+```{r load_30gy_data, eval = TRUE, include = FALSE}
+
+clinical <- readr::read_tsv(
+  file      = url_clinical,
+  col_names = TRUE,
+  col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(
+    Tumor_Sample_Barcode = tumor_id_wes,
+    T_Stage              = t_stage,
+    N_Stage              = n_stage,
+    Smoking_Status       = smoking_category_yes_never
+  ) %>%
+  tidyr::drop_na(Tumor_Sample_Barcode) %>%
+  dplyr::select(-additional_crt_post_neck_dissection) %>%
+  dplyr::mutate(
+    Final_HPV_Status = "Positive",
+    is_selected      = 1
+  )
+
+mutation_smry <- maftools::read.maf(maf = url_tumor_variants, clinical = clinical)
+mutation_smry <- subsetMaf(mutation_smry, clinQuery = "!is.na(is_selected)")
+
+HPV_Pos <- mutation_smry
+n_pos   <- nrow(HPV_Pos@clinical.data)
+
+color_palette_t <- c("#f0f9e8", "#bae4bc", "#2b8cbe")
+names(color_palette_t) <- unique(mutation_smry@clinical.data$T_Stage)
+
+color_palette_n <- c("#f0f9e8", "#bae4bc", "#7bccc4", "#2b8cbe")
+names(color_palette_n) <- unique(mutation_smry@clinical.data$N_Stage)
+
+color_palette_s <- c("#f0f9e8", "#bae4bc")
+names(color_palette_s) <- unique(mutation_smry@clinical.data$Smoking_Status)
+```
+
+```{r plot_30gy_oncoprint, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 3.5, fig.cap = '<br/>**Supplementary Figure S1a** Oncoprint of somatic mutations in 119 HPV-associated OPC patients obtained using WES.'}
+
+oncoplot(
+  maf                     = mutation_smry,
+  genes                   = Hugo_Symbols,
+  keepGeneOrder           = TRUE,
+  GeneOrderSort           = FALSE,
+  sortByMutation          = FALSE,
+  sortByAnnotation        = FALSE,
+  colors                  = vc_cols,
+  bgCol                   = "#EEEDEB",
+  drawRowBar              = FALSE,
+  drawColBar              = FALSE,
+  logColBar               = FALSE,
+  showTitle               = FALSE,
+  gene_mar                = 7,
+  showTumorSampleBarcodes = FALSE,
+  clinicalFeatures        = c("T_Stage", "N_Stage", "Smoking_Status"),
+  cohortSize              = nrow(mutation_smry@clinical.data),
+  removeNonMutated        = FALSE,
+  fill                    = TRUE,
+  annotationColor         = list(
+    T_Stage        = color_palette_t,
+    N_Stage        = color_palette_n,
+    Smoking_Status = color_palette_s
+  ),
+  anno_height   = 1.5,
+  legend_height = 0.5
+)
+```
+
+```{r saturation_curve_30gy, eval = TRUE, include = FALSE}
+
+plot_foundation <- compute_saturation(HPV_Pos, url_gene_list[["foundation_one"]], n_pos) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "FoundationOne CDx")
+
+plot_guardant <- compute_saturation(HPV_Pos, url_gene_list[["guardant_360"]], n_pos) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "Guardant360 CDx")
+
+plot_msk_access <- compute_saturation(HPV_Pos, url_gene_list[["msk_accessv1"]], n_pos) %>%
+  dplyr::filter(number_variants < 10) %>%
+  dplyr::mutate(Assay = "MSK-ACCESS")
+```
+<br/>
+<br/>
+```{r plot_30gy_saturation_curve, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S1b** Comparison of commercially available targeted liquid biopsy assays, showing limited variant capture in HPV-associated OPC patients using the WES mutation profiles.'}
+
+plot_ <- dplyr::bind_rows(plot_msk_access, plot_foundation, plot_guardant) %>%
+  ggplot(aes(x = number_variants, y = fraction_samples, color = Assay)) +
+  geom_line(stat = "identity", linewidth = 0.75) +
+  geom_vline(xintercept = 3, linetype = 2, linewidth = 0.5, color = "goldenrod3") +
+  geom_point(stat = "identity", shape = 21, fill = "white", size = 2.5) +
+  scale_color_brewer(type = "qual", palette = 6) +
+  xlab("Number of Variants") +
+  ylab("Fraction of Patients (%)") +
+  scale_x_continuous(limits = c(1, 10), breaks = 1:10, labels = 1:10) +
+  scale_y_continuous(limits = c(1, 99)) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  )
+
+print(plot_)
+```
