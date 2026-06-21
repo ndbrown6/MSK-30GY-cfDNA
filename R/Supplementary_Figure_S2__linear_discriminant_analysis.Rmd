@@ -362,20 +362,26 @@ plot_insert_size <- insert_metrics_by_gene %>%
   ) +
   guides(fill = "none")
 ```
+
 <br/>
 <br/>
+
 ```{r plot_30gy_barplot, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Supplementary Figure S2a** Bar plot of patient distribution by HPV subtype based on primary tumor analysis where HPV-16 predominates (89% of cases); HPV-18, -33, and -35 samples were too few to be used in the training set.'}
 
 print(plot_hpv16_bar)
 ```
+
 <br/>
 <br/>
+
 ```{r plot_30gy_ctdna_frac, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Supplementary Figure S2b** Box plots comparing the ctDNA fraction between putative ctDNA positive and negative samples in the training and outgroup test set samples.'}
 
 print(plot_ctdna_frac)
 ```
+
 <br/>
 <br/>
+
 ```{r plot_30gy_mean_insert_size, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.25, fig.cap = '<br/>**Supplementary Figure S2c** Box plots comparing the mean insert size of read pairs aligned to the HPV-16 genome between putative ctDNA positive and negative samples in the training and outgroup test set samples.'}
 
 print(plot_insert_size)

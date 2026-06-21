@@ -472,14 +472,18 @@ plot_pca_insert_size <- build_pca_plot(
   plot_title  = "HPV-16 Mean Insert Size"
 )
 ```
+
 <br/>
 <br/>
+
 ```{r plot_pca_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 5.75, fig.cap = '<br/>**Supplementary Figure S3a** PCA of aligned read pairs across all samples.'}
 
 print(plot_pca_read_count)
 ```
+
 <br/>
 <br/>
+
 ```{r plot_pca_insert_size, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 5.75, fig.cap = '<br/>**Supplementary Figure S3b** PCA of mean insert sizes across all samples.'}
 
 print(plot_pca_insert_size)

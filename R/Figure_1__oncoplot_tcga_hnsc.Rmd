@@ -186,8 +186,10 @@ plot_msk_access <- dplyr::bind_rows(
   dplyr::filter(number_variants < 10) %>%
   dplyr::mutate(Assay = "MSK-ACCESS")
 ```
+
 <br/>
 <br/>
+
 ```{r plot_tcga_saturation_curve, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 5, fig.cap = '<br/>**Figure 1c** Comparison of commercially available targeted liquid biopsy assays, showing limited variant capture in HPV-positive head and neck cancers based on TCGA mutation profiles.'}
 
 plot_ <- dplyr::bind_rows(plot_msk_access, plot_foundation, plot_guardant) %>%
