@@ -1,0 +1,491 @@
+---
+title: "Supplementary Figure S4 - Variables used to train the machine learning model for detecting tumor-derived circulating HPV (cHPV) DNA in plasma"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("tidyr")
+  library("magrittr")
+  library("reshape2")
+  library("ggsignif")
+  library("ggpubr")
+  library("MASS")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_insert_metrics_by_gene   <- "../data/insert_metrics_by_gene.txt"
+url_insert_summary           <- "../data/insert_summary.txt"
+url_insert_summary_ft        <- "../data/insert_summary_ft.txt"
+url_insert_metrics_ft        <- "../data/insert_metrics_ft.txt"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+url_bed_file                 <- "../data/hpv_31_33_35H_16_18.bed"
+url_primers                  <- "../data/HPV_primers.bed"
+
+url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
+url_gsea                     <- "../res/GSEA.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+contig_to_hpv <- c(
+  "J04353.1"   = "HPV-31",
+  "M12732.1"   = "HPV-33",
+  "NC001357.1" = "HPV-18",
+  "NC001526.4" = "HPV-16",
+  "X74477.1"   = "HPV-35"
+)
+
+target_names <- c(
+  "E1_1:1950", "E2_1891:2989", "E5_2985:3237",
+  "E6_7124:7601", "E7_7603:7900", "L1_4774:6292"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+N_TILES                   <- 250
+
+# --- Axis label helpers ---
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+
+scientific_1e <- function(x) {
+  parse(text = gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+mrd_smry <- readr::read_tsv(
+  url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    sample_uuid = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE),
+    sample_name = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE)
+  )
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+nodal_dissection_smry <- readr::read_tsv(
+  url_no_node_dissection, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(patient_id_mskcc = sample)
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+bed_file <- readr::read_tsv(
+  url_bed_file, col_names = FALSE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(chromosome = X1, start = X2, end = X3, gene_name = X4) %>%
+  dplyr::select(-X5) %>%
+  dplyr::filter(gene_name != "E1^E4")
+
+insert_metrics_by_gene <- readr::read_tsv(
+  url_insert_metrics_by_gene, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(sample_name = SAMPLE_NAME) %>%
+  dplyr::filter(TARGET_REGION != "NC001526.4:3372-4794")
+
+insert_size_smry <- readr::read_tsv(
+  url_insert_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::group_by(SAMPLE_NAME) %>%
+  dplyr::mutate(TOTAL_READS = sum(READ_COUNT)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(`%_READS` = READ_COUNT / TOTAL_READS)
+
+insert_size_smry_ft <- readr::read_tsv(
+  url_insert_summary_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::group_by(SAMPLE_NAME, FRAGMENT_LENGTH) %>%
+  dplyr::mutate(TOTAL_READS = sum(READ_COUNT)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(`%_READS` = READ_COUNT / TOTAL_READS)
+
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+primer_set <- readr::read_tsv(
+  url_primers, col_names = FALSE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(insert_size = X3 - X2)
+
+# --- ctDNA-positive training set ---
+smry_t_pos <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode) %>%
+  dplyr::filter(mean_af > 0.05) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(hpv_type_wes_wgs %in% names(target_contigs)) %>%
+  dplyr::left_join(
+    dplyr::select(mrd_smry, sample_name, `MRD-Landmark_Result`),
+    by = "sample_name"
+  ) %>%
+  dplyr::filter(`MRD-Landmark_Result` == "PRESENT") %>%
+  dplyr::mutate(Is_ctDNA = "+ve")
+
+# --- ctDNA-negative training set ---
+neg_candidates <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), max_af = max(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode) %>%
+  dplyr::filter(mean_af < 0.0001, max_af < 0.001) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::left_join(nodal_dissection_smry, by = "patient_id_mskcc") %>%
+  dplyr::filter(nd_event == 0, timepoint_days_since_start_of_RT > 730)
+
+latest_per_patient <- neg_candidates %>%
+  dplyr::group_by(patient_id_mskcc) %>%
+  dplyr::summarize(
+    timepoint_days_since_start_of_RT = max(timepoint_days_since_start_of_RT),
+    .groups = "drop"
+  )
+
+smry_t_neg <- neg_candidates %>%
+  dplyr::inner_join(latest_per_patient, by = c("patient_id_mskcc", "timepoint_days_since_start_of_RT")) %>%
+  dplyr::left_join(
+    dplyr::select(mrd_smry, sample_name, `MRD-Landmark_Result`),
+    by = "sample_name"
+  ) %>%
+  dplyr::filter(`MRD-Landmark_Result` == "ABSENT") %>%
+  dplyr::mutate(Is_ctDNA = "-ve")
+
+shared_cols <- intersect(colnames(smry_t_pos), colnames(smry_t_neg))
+smry_ft <- dplyr::bind_rows(
+  dplyr::select(smry_t_pos, all_of(shared_cols)),
+  dplyr::select(smry_t_neg, all_of(shared_cols))
+)
+
+# --- Base insert-size metrics joined once for LDA use ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(
+    mean_af   = mean(t_maf),
+    median_af = median(t_maf),
+    max_af    = max(t_maf),
+    .groups   = "drop"
+  ) %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+
+smry_base <- insert_metrics_by_gene %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::mutate(hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")) %>%
+  dplyr::mutate(
+    chromosome = vapply(TARGET_REGION, function(x) strsplit(x, ":", fixed = TRUE)[[1]][1], character(1)),
+    start      = vapply(TARGET_REGION, function(x) strsplit(x, ":|-", perl = TRUE)[[1]][2], character(1)),
+    end        = vapply(TARGET_REGION, function(x) strsplit(x, ":|-", perl = TRUE)[[1]][3], character(1))
+  ) %>%
+  readr::type_convert() %>%
+  dplyr::left_join(bed_file, by = c("chromosome", "start", "end")) %>%
+  dplyr::mutate(
+    chromosome    = dplyr::recode(chromosome, !!!contig_to_hpv),
+    mean_af       = dplyr::if_else(mean_af   == 0, 1e-6, mean_af),
+    median_af     = dplyr::if_else(median_af == 0, 1e-6, median_af),
+    max_af        = dplyr::if_else(max_af    == 0, 1e-6, max_af),
+    start_end     = paste0(start, ":", end),
+    aligned_reads = log10(READ_PAIRS + 1),
+    insert_size   = log10(MEAN_INSERT_SIZE + 1)
+  )
+  
+# --- Helper: pivot wide into LDA feature matrix ---
+pivot_to_matrix <- function(df, label_col = NULL) {
+  id_vars <- c("sample_name", label_col)
+
+  reads_wide <- reshape2::dcast(
+    df,
+    formula = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
+    value.var = "aligned_reads",
+    fill = 0
+  ) %>%
+    dplyr::rename(
+      `E1_1:1950_READ_COUNT`    = `E1_1:1950`,
+      `E2_1891:2989_READ_COUNT` = `E2_1891:2989`,
+      `E5_2985:3237_READ_COUNT` = `E5_2985:3237`,
+      `E6_7124:7601_READ_COUNT` = `E6_7124:7601`,
+      `E7_7603:7900_READ_COUNT` = `E7_7603:7900`,
+      `L1_4774:6292_READ_COUNT` = `L1_4774:6292`
+    )
+
+  ins_wide <- reshape2::dcast(
+    df,
+    formula = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
+    value.var = "insert_size",
+    fill = 0
+  ) %>%
+    dplyr::rename(
+      `E1_1:1950_INSERT_SIZE`    = `E1_1:1950`,
+      `E2_1891:2989_INSERT_SIZE` = `E2_1891:2989`,
+      `E5_2985:3237_INSERT_SIZE` = `E5_2985:3237`,
+      `E6_7124:7601_INSERT_SIZE` = `E6_7124:7601`,
+      `E7_7603:7900_INSERT_SIZE` = `E7_7603:7900`,
+      `L1_4774:6292_INSERT_SIZE` = `L1_4774:6292`
+    )
+
+  dplyr::left_join(reads_wide, ins_wide, by = id_vars) %>%
+    tibble::column_to_rownames(var = "sample_name")
+}
+  
+# --- Prepare training matrix ---
+smry_train <- smry_base %>%
+  dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
+  dplyr::filter(!is.na(Is_ctDNA), chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16") %>%
+  dplyr::mutate(
+    Is_ctDNA = dplyr::case_when(
+      hpv_type_wes_wgs == "HPV-16" & Is_ctDNA == "+ve" ~ "+ve",
+      TRUE ~ "-ve"
+    ),
+    Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
+  )
+  
+smry_out <- smry_base %>%
+  dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
+  dplyr::filter(is.na(Is_ctDNA), hpv_type_wes_wgs != "HPV-16" & hpv_type_wes_wgs != "Unknown") %>%
+  dplyr::left_join(mrd_smry, by = c("sample_name", "sample_uuid")) %>%
+  dplyr::mutate(
+    Is_ctDNA = dplyr::case_when(
+		`MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
+		`MRD-Monitoring_Result` == "ABSENT" ~ "-ve"
+	),
+    Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
+  )
+
+data_ <- pivot_to_matrix(smry_train, label_col = "Is_ctDNA") %>%
+  dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
+ 
+outgroup_ <- pivot_to_matrix(smry_out, label_col = "Is_ctDNA") %>%
+  dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
+  
+fit_ <- MASS::lda(Is_ctDNA ~ ., data = data_)
+res_ <- predict(object = fit_, newdata = data_)
+out_ <- predict(object = fit_, newdata = outgroup_)
+wilks_ <- klaR::greedy.wilks(formula = Is_ctDNA ~ ., data = data.frame(data_), niveau = Inf)
+```
+
+```{r plot_lda_coefficients, eval = TRUE, include = FALSE}
+
+plot_lda_coeff <- fit_$scaling %>%
+	as.data.frame() %>%
+	tibble::rownames_to_column("variable") %>%
+	dplyr::as_tibble() %>%
+	dplyr::rename(coefficient  = "LD1") %>%
+	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "\nMean Insert Size\n\n", "\nAligned Read Pairs\n\n")) %>%
+	dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
+	dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
+	dplyr::mutate(variable = factor(variable, levels = rev(c("E1", "E2", "E5", "L1", "E6", "E7")), ordered = TRUE)) %>%
+	ggplot(aes(x = variable, ymin = 0, ymax = coefficient, y = coefficient, shape = is_insert_size)) +
+	geom_linerange(stat = "identity", size = .5) +
+	geom_hline(yintercept = 0, size = .75) +
+	geom_point(stat = "identity", fill = "white", size = 3.5) +
+	xlab("") +
+	ylab("Standardized Coefficients") +
+	scale_shape_manual(values = c(21, 22)) +
+	scale_y_continuous(limits = c(-40, 20),
+			   breaks = c(-40, -30, -20, -10, 0, 10, 20),
+			   labels = c(-40, "", -20, "", 0, "", 20)) +
+	coord_flip() +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 12),
+	      axis.text.y = element_text(size = 12),
+	      panel.spacing = unit(2, "lines"),
+	      strip.background = element_rect(colour="white", fill="white")) +
+	facet_wrap(~is_insert_size, ncol = 2, scales = "free") +
+	guides(shape = FALSE)
+
+```
+
+```{r plot_greedy_wilks, eval = TRUE, include = FALSE}
+
+plot_wilks <- wilks_ %>%
+	.[["results"]] %>%
+	dplyr::as_tibble() %>%
+	dplyr::rename(variable  = vars) %>%
+	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
+	dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
+	dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
+	dplyr::mutate(index = 1:nrow(.)) %>%
+	ggplot(aes(x = index, y = `Wilks.lambda`)) +
+	geom_line(stat = "identity", size = .5) +
+	geom_point(data = wilks_ %>%
+		   	  .[["results"]] %>%
+		   	  dplyr::as_tibble() %>%
+		   	  dplyr::rename(variable  = vars) %>%
+		   	  dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
+		   	  dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
+		   	  dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
+		   	  dplyr::mutate(index = 1:nrow(.)),
+		   mapping = aes(x = index, y = `Wilks.lambda`, shape = is_insert_size), stat = "identity", fill = "white", size = 2.5, inherit.aes = FALSE) +
+	xlab("") +
+	ylab(expression("Wilks'"~lambda)) +
+	scale_shape_manual(values = c(21, 22)) +
+	scale_x_continuous(limits = c(1, 12),
+			   breaks = seq(from = 1, to = 12, by = 1),
+			   labels =  wilks_ %>%
+				     .[["results"]] %>%
+			   	     dplyr::as_tibble() %>%
+			   	     dplyr::rename(variable  = vars) %>%
+			   	     dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
+			   	     dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
+			   	     dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
+			   	     .[["variable"]]) +
+	scale_y_continuous(breaks = c(0.006, 0.0065, 0.007, 0.0075, 0.008, 0.0085),
+			   labels = c(".006", "", ".007", "", ".008", "")) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 9),
+	      axis.text.y = element_text(size = 12)) +
+	guides(shape = guide_legend(title = ""))
+
+```
+```{r plot_posterior_pr, eval = TRUE, include = FALSE}
+
+plot_post_pr <- do.call(cbind, res_) %>%
+	dplyr::as_tibble() %>%
+	dplyr::mutate(set = "training") %>%
+	dplyr::bind_rows(
+		do.call(cbind, out_) %>%
+		dplyr::as_tibble() %>%
+		dplyr::mutate(set = "outgroup")
+	) %>%
+	dplyr::mutate(class = factor(class, levels = c(1, 2), ordered = TRUE)) %>%
+	dplyr::mutate(set = factor(set, levels = c("training", "outgroup"), ordered = TRUE)) %>%
+	ggplot(aes(x = class:set, y = log10(`+ve`))) +
+	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
+	geom_jitter(data = do.call(cbind, res_) %>%
+		    dplyr::as_tibble() %>%
+		    dplyr::mutate(set = "training") %>%
+		    dplyr::bind_rows(
+			    do.call(cbind, out_) %>%
+			    dplyr::as_tibble() %>%
+			    dplyr::mutate(set = "outgroup")
+		    ) %>%
+		    dplyr::mutate(class = factor(class, levels = c(1, 2), ordered = TRUE)) %>%
+		    dplyr::mutate(set = factor(set, levels = c("training", "outgroup"), ordered = TRUE)),
+		    mapping = aes(x = class:set, y = log10(`+ve`), fill = set),
+		    stat = "identity", width = .1, height = 0, shape = 21, alpha = .85, size = 3) +
+	scale_fill_manual(values = c("training" = "#377eb8",
+				     "outgroup" = "#e41a1c")) +
+	scale_x_discrete(breaks = c("1:training", "2:training", "2:outgroup"),
+			 labels = c("+ve", "-ve", "Outgroup")) +
+	scale_y_continuous(limits = c(-200, 35),
+			   breaks = c(-200, -175, -150, -125, -100, -75, -50, -25, 0),
+			   labels = c(-200, "", -150, "", -100, "", -50, "", 0)) +
+	xlab("") +
+	ylab(expression("Posterior Probability ("~-log[10]~")")) +
+	geom_signif(stat = "signif",
+		    comparisons = list(c("1:training", "2:training")),
+		    test = "wilcox.test",
+		    test.args = list(alternative = "two.sided", exact = FALSE),
+		    y_position = 15, vjust = -.5,
+		    tip_length = 0.02) +
+	theme_classic() +
+	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
+	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
+	      axis.text.x = element_text(size = 10),
+	      axis.text.y = element_text(size = 12)) +
+	guides(fill = FALSE)
+```
+
+<br/>
+<br/>
+
+```{r figure_s4ab, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5.5, fig.cap = '<br/>**Supplementary Figure S4a,b** Forest plots showing the standardized coefficients of the LDA where variables representing HPV-16 genes are grouped in (a) number of aligned reads pairs and (b) mean insert size.'}
+
+print(plot_lda_coeff)
+```
+
+<br/>
+<br/>
+
+```{r figure_s4c, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S4c** Forward feature selection using the greedy Wilk\'s objective function.'}
+
+print(plot_wilks)
+```
+
+<br/>
+<br/>
+
+```{r figure_s4d, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.55, fig.cap = '<br/>**Supplementary Figure S4d** Box plot comparing the posterior probability of ctDNA detection between putative ctDNA positive and negative training set samples along with the outgroup test samples. The posterior probability was calculated using the LDA trained on the training set samples.'}
+
+print(plot_post_pr)
+```

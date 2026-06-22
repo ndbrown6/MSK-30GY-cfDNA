@@ -1,5 +1,5 @@
 ---
-title: "Figure 2 - Training a machine learning model for detecting tumor-derived circulating HPV (cHPV) DNA in plasma"
+title: "Supplementary Figure S6 - Applying machine learning model for detecting tumor-derived circulating HPV (cHPV) DNA in plasma samples from ingroup test set"
 author:
   - name: David N Brown, Bill H Diplas
     affiliation: Memorial Sloan Kettering Cancer Center
@@ -266,64 +266,6 @@ smry_base <- insert_metrics_by_gene %>%
   )
 ```
 
-```{r build_plots_2bc, eval = TRUE, include = FALSE}
-
-# --- Figure 2c: HPV-16 aligned read pairs by ctDNA status ---
-plot_aligned_reads <- insert_metrics_by_gene %>%
-  dplyr::group_by(sample_name) %>%
-  dplyr::summarize(READ_PAIRS = sum(READ_PAIRS), .groups = "drop") %>%
-  dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
-  dplyr::mutate(
-    Is_ctDNA = dplyr::coalesce(Is_ctDNA, "Unknown"),
-    Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve", "Unknown"), ordered = TRUE)
-  ) %>%
-  dplyr::left_join(manifest, by = "sample_name") %>%
-  dplyr::filter(
-    (Is_ctDNA %in% c("+ve", "-ve") & hpv_type_wes_wgs == "HPV-16") |
-    (Is_ctDNA == "Unknown" & hpv_type_wes_wgs %in% c("HPV-18", "HPV-33", "HPV-35", "HPV-58"))
-  ) %>%
-  ggplot(aes(x = Is_ctDNA, y = READ_PAIRS, fill = Is_ctDNA)) +
-  geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white") +
-  geom_jitter(stat = "identity", width = 0.15, height = 0, shape = 21, alpha = 0.85, size = 3) +
-  scale_fill_manual(values = c("+ve" = "#377eb8", "-ve" = "#377eb8", "Unknown" = "#e41a1c")) +
-  xlab("") +
-  ylab("HPV-16 Aligned Read Pairs") +
-  scale_x_discrete(
-    breaks = c("+ve", "-ve", "Unknown"),
-    labels = c("+ve", "-ve", "Outgroup")
-  ) +
-  scale_y_log10(
-    limits = c(1e1, 1e7),
-    breaks = c(1e1, 1e3, 1e5, 1e7),
-    labels = scientific_10
-  ) +
-  geom_signif(
-    stat        = "signif",
-    comparisons = list(c("+ve", "-ve")),
-    test        = "wilcox.test",
-    test.args   = list(alternative = "two.sided", exact = FALSE),
-    y_position  = log10(1e6),
-    vjust       = -0.25,
-    tip_length  = 0.01
-  ) +
-  theme_classic() +
-  theme(
-    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
-    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
-    axis.text.x  = element_text(size = 10),
-    axis.text.y  = element_text(size = 12)
-  ) +
-  guides(fill = "none")
-```
-
-<br/>
-<br/>
-
-```{r plot_30gy_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.55, fig.cap = '<br/>**Figure 2c** Box plot comparing number of read pairs aligned to the HPV-16 genome between putative ctDNA positive and negative samples in the training and outgroup test set samples.'}
-
-print(plot_aligned_reads)
-```
-
 ```{r build_lda_plot_2d, eval = TRUE, include = FALSE}
 
 # --- Helper: pivot wide into LDA feature matrix ---
@@ -399,8 +341,23 @@ smry_train <- smry_base %>%
     ),
     Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
   )
+  
+smry_test <- smry_base %>%
+  dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
+  dplyr::filter(is.na(Is_ctDNA), chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16") %>%
+  dplyr::left_join(mrd_smry, by = c("sample_name", "sample_uuid")) %>%
+  dplyr::mutate(
+    Is_ctDNA = dplyr::case_when(
+		`MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
+		`MRD-Monitoring_Result` == "ABSENT" ~ "-ve"
+	),
+    Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
+  )
 
 data_ <- pivot_to_matrix(smry_train, label_col = "Is_ctDNA") %>%
+  dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
+  
+test_ <- pivot_to_matrix(smry_test, label_col = "Is_ctDNA") %>%
   dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
 
 # --- Per-gene LDA loop ---
@@ -412,10 +369,10 @@ for (i in seq_along(target_names)) {
   ins_col <- paste0(target_names[i], "_INSERT_SIZE")
 
   fit_ <- MASS::lda(Is_ctDNA ~ ., data = dplyr::select(data_, all_of(c("Is_ctDNA", rc_col, ins_col))))
-  res_ <- predict(fit_, newdata = dplyr::select(data_, all_of(c(rc_col, ins_col))))
+  res_ <- predict(fit_, newdata = dplyr::select(test_, all_of(c(rc_col, ins_col))))
   sim_ <- predict(fit_, newdata = dplyr::select(mat_,  all_of(c(rc_col, ins_col))))
 
-  observed[[i]] <- data_ %>%
+  observed[[i]] <- test_ %>%
     dplyr::mutate(Pr = res_$posterior[, "+ve"]) %>%
     dplyr::select(all_of(c("Is_ctDNA", "Pr", rc_col, ins_col))) %>%
     dplyr::rename(read_count = !!rc_col, insert_size = !!ins_col) %>%
@@ -428,7 +385,7 @@ for (i in seq_along(target_names)) {
     dplyr::mutate(target_name = target_names[i])
 }
 
-# --- Figure 2d: LDA decision boundary facet plot ---
+# --- Supplementary Figure S6: LDA decision boundary facet plot ---
 parse_end <- function(df) {
   df %>%
     dplyr::mutate(
@@ -452,7 +409,7 @@ plot_lda <- parse_end(do.call(rbind, observed)) %>%
     inherit.aes = FALSE
   ) +
   scale_fill_continuous(low = "#e7e1ef", high = "#c51b8a", breaks = c(0.1, 0.3, 0.5, 0.7, 0.9)) +
-  geom_point(stat = "identity", fill = NA, color = "#a50f15", alpha = 0.75, size = 3) +
+  geom_point(stat = "identity", fill = NA, color = "#a50f15", alpha = 0.55, size = 1.85) +
   scale_shape_manual(values = c("+ve" = 3, "-ve" = 4)) +
   xlab("Number of Read Pairs Aligned") +
   ylab("Mean Insert Size (bp)") +
@@ -483,152 +440,7 @@ plot_lda <- parse_end(do.call(rbind, observed)) %>%
 <br/>
 <br/>
 
-```{r plot_lda_30gy_insert_sizes_and_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5.5, fig.width = 8.49, fig.cap = '<br/>**Figure 2d** Scatter plots of number of read pairs versus mean insert sizes of reads aligned to HPV-16 genes in training plasma samples, classified as ctDNA positive or negative by the PCM assay.'}
+```{r plot_lda_30gy_insert_sizes_and_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5.5, fig.width = 8.49, fig.cap = '<br/>**Figure S6** Scatter plots of number of read pairs versus mean insert sizes of reads aligned to HPV-16 genes in training plasma samples, classified as ctDNA positive or negative by the PCM assay.'}
 
 print(plot_lda)
-```
-
-```{r build_plots_2ef, eval = TRUE, include = FALSE}
-
-posterior_probs <- readr::read_tsv(
-  url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert() %>%
-  dplyr::rename(Is_ctDNA__HPV = Is_ctDNA)
-
-# --- Figure 2e: HPV copy number by classification outcome ---
-plot_copy_number <- posterior_probs %>%
-  dplyr::left_join(dplyr::select(mrd_smry, sample_uuid, `MRD-Landmark_Result`), by = "sample_uuid") %>%
-  dplyr::mutate(
-    Is_ctDNA__MRD = dplyr::case_when(
-      `MRD-Landmark_Result` == "PRESENT" ~ "+ve",
-      TRUE ~ "-ve"
-    )
-  ) %>%
-  dplyr::filter(!(sample_name %in% smry_ft$sample_name)) %>%
-  dplyr::mutate(
-    class = dplyr::case_when(
-      Is_ctDNA__HPV == "-ve" & Is_ctDNA__MRD == "+ve" ~ "FN",
-      Is_ctDNA__HPV == "-ve" & Is_ctDNA__MRD == "-ve" ~ "TN",
-      Is_ctDNA__HPV == "+ve" & Is_ctDNA__MRD == "-ve" ~ "FP",
-      Is_ctDNA__HPV == "+ve" & Is_ctDNA__MRD == "+ve" ~ "TP"
-    )
-  ) %>%
-  dplyr::filter(class %in% c("FP", "FN")) %>%
-  dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-  dplyr::filter(!duplicated(paste0(patient_id_mskcc, ":", class))) %>%
-  ggplot(aes(x = class, y = hpv_panel_copy_number)) +
-  geom_boxplot(stat = "boxplot", outlier.shape = NA) +
-  geom_jitter(
-    stat = "identity", width = 0.15, height = 0,
-    shape = 21, alpha = 0.85, size = 3,
-    color = "#1b9e77", fill = "white"
-  ) +
-  scale_x_discrete(
-    breaks = c("FN", "FP"),
-    labels = c("\nPCM +ve/\nHPV -ve", "\nPCM -ve/\nHPV +ve")
-  ) +
-  scale_y_continuous(
-    limits = c(0, 300),
-    breaks = seq(0, 300, by = 50),
-    labels = seq(0, 300, by = 50)
-  ) +
-  xlab("") +
-  ylab("HPV Copy Number") +
-  geom_signif(
-    stat        = "signif",
-    comparisons = list(c("FN", "FP")),
-    test        = "wilcox.test",
-    test.args   = list(alternative = "two.sided", exact = FALSE),
-    y_position  = 275,
-    vjust       = -0.5,
-    tip_length  = 0.01
-  ) +
-  theme_classic() +
-  theme(
-    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
-    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
-    axis.text.x  = element_text(size = 10),
-    axis.text.y  = element_text(size = 12)
-  )
-
-# --- Figure 2f: HPV copy number vs. cfDNA aligned read pairs ---
-plot_linear_regression <- idx_metrics_ft %>%
-  dplyr::select(
-    sample_name     = SAMPLE_NAME,
-    contig          = CHROMOSOME,
-    aligned_reads   = ALIGNED_READS,
-    fragment_length = FRAGMENT_LENGTH
-  ) %>%
-  dplyr::left_join(
-    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
-    by = "contig"
-  ) %>%
-  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
-  dplyr::left_join(manifest, by = "sample_name") %>%
-  dplyr::filter(
-    chromosome == hpv_type_wes_wgs,
-    timepoint_days_since_start_of_RT < 0,
-    hpv_type_wes_wgs == "HPV-16"
-  ) %>%
-  dplyr::left_join(
-    dplyr::select(mut_af_smry, sample_name, mean_af),
-    by = "sample_name"
-  ) %>%
-  dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
-  dplyr::filter(!is.na(hpv_panel_copy_number), !is.na(aligned_reads), !is.na(mean_af)) %>%
-  dplyr::left_join(
-    dplyr::select(posterior_probs, sample_id_mskcc, Is_ctDNA = Is_ctDNA__HPV),
-    by = "sample_id_mskcc"
-  ) %>%
-  dplyr::left_join(
-    readr::read_tsv(url_gsea, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-      readr::type_convert(),
-    by = "patient_id_mskcc"
-  ) %>%
-  dplyr::mutate(
-    mean_af       = mean_af * 100,
-    aligned_reads = log10(aligned_reads)
-  ) %>%
-  ggplot(aes(x = hpv_panel_copy_number, y = aligned_reads)) +
-  geom_smooth(
-    stat = "smooth", method = "lm", formula = y ~ x,
-    se = FALSE, color = "goldenrod3", linewidth = 1.5
-  ) +
-  geom_point(
-    stat = "identity", shape = 21,
-    color = "#1b9e77", fill = "white", alpha = 0.85, size = 2.5
-  ) +
-  scale_x_log10() +
-  scale_y_continuous(
-    limits = c(2, 7),
-    breaks = 2:7,
-    labels = scientific_10(10^(2:7))
-  ) +
-  xlab("Primary Tumor HPV Copy Number") +
-  ylab("cfDNA Aligned HPV Read Pairs") +
-  ggpubr::stat_cor(method = "spearman", label.x = log10(0.5), label.y = 7, size = 4) +
-  theme_classic() +
-  theme(
-    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
-    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
-    axis.text.x  = element_text(size = 12),
-    axis.text.y  = element_text(size = 12)
-  )
-```
-
-<br/>
-<br/>
-
-```{r plot_hpv_copy_number_misclassifications, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.25, fig.width = 2.75, fig.cap = '<br/>**Figure 2e** Box plot comparing primary tumor HPV-16 copies between discordant test samples, with significantly higher viral load in PCM-ve / HPV+ve cases.'}
-
-print(plot_copy_number)
-```
-
-<br/>
-<br/>
-
-```{r plot_hpv_copy_number_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.25, fig.width = 3.25, fig.cap = '<br/>**Figure 2f** Correlation of cfDNA aligned HPV-16 read pairs in baseline plasma samples patient-matched primary tumor HPV-16 copies.'}
-
-print(plot_linear_regression)
 ```

@@ -10,6 +10,7 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
 ```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+
 suppressPackageStartupMessages({
   library("ggplot2")
   library("readr")
