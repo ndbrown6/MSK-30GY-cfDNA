@@ -10,7 +10,6 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
 ```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
-
 suppressPackageStartupMessages({
   library("ggplot2")
   library("readr")
@@ -19,8 +18,8 @@ suppressPackageStartupMessages({
   library("magrittr")
   library("reshape2")
   library("ggsignif")
-  library("ggpubr")
   library("MASS")
+  library("klaR")
 })
 
 # --- Data paths ---
@@ -29,18 +28,9 @@ url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_202
 url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
 url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
 url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
-url_clinical                 <- "../data/clinical.txt"
 url_mutation_summary         <- "../data/mutation_summary.maf"
 url_insert_metrics_by_gene   <- "../data/insert_metrics_by_gene.txt"
-url_insert_summary           <- "../data/insert_summary.txt"
-url_insert_summary_ft        <- "../data/insert_summary_ft.txt"
-url_insert_metrics_ft        <- "../data/insert_metrics_ft.txt"
-url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
 url_bed_file                 <- "../data/hpv_31_33_35H_16_18.bed"
-url_primers                  <- "../data/HPV_primers.bed"
-
-url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
-url_gsea                     <- "../res/GSEA.txt"
 
 target_contigs <- c(
   "HPV-16" = "NC001526.4",
@@ -63,17 +53,7 @@ target_names <- c(
   "E6_7124:7601", "E7_7603:7900", "L1_4774:6292"
 )
 
-FRAGMENT_LENGTH_THRESHOLD <- 37
-N_TILES                   <- 250
-
-# --- Axis label helpers ---
-scientific_10 <- function(x) {
-  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
-}
-
-scientific_1e <- function(x) {
-  parse(text = gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), fixed = TRUE))
-}
+N_TILES <- 250
 ```
 
 ```{r load_shared_data, eval = TRUE, include = FALSE}
@@ -134,11 +114,6 @@ mutation_smry <- readr::read_tsv(
 ) %>%
   readr::type_convert()
 
-clinical <- readr::read_tsv(
-  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert()
-
 bed_file <- readr::read_tsv(
   url_bed_file, col_names = FALSE, col_types = cols(.default = col_character())
 ) %>%
@@ -153,35 +128,6 @@ insert_metrics_by_gene <- readr::read_tsv(
   readr::type_convert() %>%
   dplyr::rename(sample_name = SAMPLE_NAME) %>%
   dplyr::filter(TARGET_REGION != "NC001526.4:3372-4794")
-
-insert_size_smry <- readr::read_tsv(
-  url_insert_summary, col_names = TRUE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert() %>%
-  dplyr::group_by(SAMPLE_NAME) %>%
-  dplyr::mutate(TOTAL_READS = sum(READ_COUNT)) %>%
-  dplyr::ungroup() %>%
-  dplyr::mutate(`%_READS` = READ_COUNT / TOTAL_READS)
-
-insert_size_smry_ft <- readr::read_tsv(
-  url_insert_summary_ft, col_names = TRUE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert() %>%
-  dplyr::group_by(SAMPLE_NAME, FRAGMENT_LENGTH) %>%
-  dplyr::mutate(TOTAL_READS = sum(READ_COUNT)) %>%
-  dplyr::ungroup() %>%
-  dplyr::mutate(`%_READS` = READ_COUNT / TOTAL_READS)
-
-idx_metrics_ft <- readr::read_tsv(
-  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert()
-
-primer_set <- readr::read_tsv(
-  url_primers, col_names = FALSE, col_types = cols(.default = col_character())
-) %>%
-  readr::type_convert() %>%
-  dplyr::mutate(insert_size = X3 - X2)
 
 # --- ctDNA-positive training set ---
 smry_t_pos <- mutation_smry %>%
@@ -232,7 +178,7 @@ smry_ft <- dplyr::bind_rows(
   dplyr::select(smry_t_neg, all_of(shared_cols))
 )
 
-# --- Base insert-size metrics joined once for LDA use ---
+# --- Base insert-size metrics joined once ---
 mut_af_smry <- mutation_smry %>%
   dplyr::filter(FILTER == "PASS") %>%
   dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -264,16 +210,16 @@ smry_base <- insert_metrics_by_gene %>%
     aligned_reads = log10(READ_PAIRS + 1),
     insert_size   = log10(MEAN_INSERT_SIZE + 1)
   )
-  
+
 # --- Helper: pivot wide into LDA feature matrix ---
 pivot_to_matrix <- function(df, label_col = NULL) {
   id_vars <- c("sample_name", label_col)
 
   reads_wide <- reshape2::dcast(
     df,
-    formula = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
+    formula  = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
     value.var = "aligned_reads",
-    fill = 0
+    fill      = 0
   ) %>%
     dplyr::rename(
       `E1_1:1950_READ_COUNT`    = `E1_1:1950`,
@@ -286,9 +232,9 @@ pivot_to_matrix <- function(df, label_col = NULL) {
 
   ins_wide <- reshape2::dcast(
     df,
-    formula = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
+    formula   = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
     value.var = "insert_size",
-    fill = 0
+    fill      = 0
   ) %>%
     dplyr::rename(
       `E1_1:1950_INSERT_SIZE`    = `E1_1:1950`,
@@ -302,8 +248,8 @@ pivot_to_matrix <- function(df, label_col = NULL) {
   dplyr::left_join(reads_wide, ins_wide, by = id_vars) %>%
     tibble::column_to_rownames(var = "sample_name")
 }
-  
-# --- Prepare training matrix ---
+
+# --- Prepare training and outgroup matrices ---
 smry_train <- smry_base %>%
   dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
   dplyr::filter(!is.na(Is_ctDNA), chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16") %>%
@@ -314,156 +260,182 @@ smry_train <- smry_base %>%
     ),
     Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
   )
-  
+
 smry_out <- smry_base %>%
   dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
-  dplyr::filter(is.na(Is_ctDNA), hpv_type_wes_wgs != "HPV-16" & hpv_type_wes_wgs != "Unknown") %>%
+  dplyr::filter(is.na(Is_ctDNA), !hpv_type_wes_wgs %in% c("HPV-16", "Unknown")) %>%
   dplyr::left_join(mrd_smry, by = c("sample_name", "sample_uuid")) %>%
   dplyr::mutate(
     Is_ctDNA = dplyr::case_when(
-		`MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
-		`MRD-Monitoring_Result` == "ABSENT" ~ "-ve"
-	),
+      `MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
+      `MRD-Monitoring_Result` == "ABSENT"  ~ "-ve"
+    ),
     Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
   )
 
-data_ <- pivot_to_matrix(smry_train, label_col = "Is_ctDNA") %>%
+data_     <- pivot_to_matrix(smry_train, label_col = "Is_ctDNA") %>%
   dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
- 
+
 outgroup_ <- pivot_to_matrix(smry_out, label_col = "Is_ctDNA") %>%
   dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
-  
-fit_ <- MASS::lda(Is_ctDNA ~ ., data = data_)
-res_ <- predict(object = fit_, newdata = data_)
-out_ <- predict(object = fit_, newdata = outgroup_)
+
+fit_   <- MASS::lda(Is_ctDNA ~ ., data = data_)
+res_   <- predict(object = fit_, newdata = data_)
+out_   <- predict(object = fit_, newdata = outgroup_)
 wilks_ <- klaR::greedy.wilks(formula = Is_ctDNA ~ ., data = data.frame(data_), niveau = Inf)
 ```
 
 ```{r plot_lda_coefficients, eval = TRUE, include = FALSE}
 
-plot_lda_coeff <- fit_$scaling %>%
-	as.data.frame() %>%
-	tibble::rownames_to_column("variable") %>%
-	dplyr::as_tibble() %>%
-	dplyr::rename(coefficient  = "LD1") %>%
-	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "\nMean Insert Size\n\n", "\nAligned Read Pairs\n\n")) %>%
-	dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
-	dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
-	dplyr::mutate(variable = factor(variable, levels = rev(c("E1", "E2", "E5", "L1", "E6", "E7")), ordered = TRUE)) %>%
-	ggplot(aes(x = variable, ymin = 0, ymax = coefficient, y = coefficient, shape = is_insert_size)) +
-	geom_linerange(stat = "identity", size = .5) +
-	geom_hline(yintercept = 0, size = .75) +
-	geom_point(stat = "identity", fill = "white", size = 3.5) +
-	xlab("") +
-	ylab("Standardized Coefficients") +
-	scale_shape_manual(values = c(21, 22)) +
-	scale_y_continuous(limits = c(-40, 20),
-			   breaks = c(-40, -30, -20, -10, 0, 10, 20),
-			   labels = c(-40, "", -20, "", 0, "", 20)) +
-	coord_flip() +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
-	      axis.text.x = element_text(size = 12),
-	      axis.text.y = element_text(size = 12),
-	      panel.spacing = unit(2, "lines"),
-	      strip.background = element_rect(colour="white", fill="white")) +
-	facet_wrap(~is_insert_size, ncol = 2, scales = "free") +
-	guides(shape = FALSE)
+# Helper: parse gene name from LDA variable string (e.g. "E1_1:1950_READ_COUNT" → "E1")
+parse_gene <- function(x) {
+  vapply(x, function(v) strsplit(v, "_")[[1]][1], character(1))
+}
 
+plot_lda_coeff <- fit_$scaling %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variable") %>%
+  dplyr::as_tibble() %>%
+  dplyr::rename(coefficient = LD1) %>%
+  dplyr::mutate(
+    is_insert_size = dplyr::if_else(
+      grepl("INSERT_SIZE", variable, fixed = TRUE),
+      "\nMean Insert Size\n\n",
+      "\nAligned Read Pairs\n\n"
+    ),
+    variable = parse_gene(variable),
+    variable = gsub("`", "", variable, fixed = TRUE),
+    variable = factor(variable, levels = rev(c("E1", "E2", "E5", "L1", "E6", "E7")), ordered = TRUE)
+  ) %>%
+  ggplot(aes(x = variable, ymin = 0, ymax = coefficient, y = coefficient, shape = is_insert_size)) +
+  geom_linerange(stat = "identity", linewidth = 0.5) +
+  geom_hline(yintercept = 0, linewidth = 0.75) +
+  geom_point(stat = "identity", fill = "white", size = 3.5) +
+  xlab("") +
+  ylab("Standardized Coefficients") +
+  scale_shape_manual(values = c(21, 22)) +
+  scale_y_continuous(
+    limits = c(-40, 20),
+    breaks = c(-40, -30, -20, -10, 0, 10, 20),
+    labels = c(-40, "", -20, "", 0, "", 20)
+  ) +
+  coord_flip() +
+  facet_wrap(~is_insert_size, ncol = 2, scales = "free") +
+  theme_classic() +
+  theme(
+    axis.title.x     = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y     = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x      = element_text(size = 12),
+    axis.text.y      = element_text(size = 12),
+    panel.spacing    = unit(2, "lines"),
+    strip.background = element_rect(colour = "white", fill = "white")
+  ) +
+  guides(shape = "none")
 ```
 
 ```{r plot_greedy_wilks, eval = TRUE, include = FALSE}
 
-plot_wilks <- wilks_ %>%
-	.[["results"]] %>%
-	dplyr::as_tibble() %>%
-	dplyr::rename(variable  = vars) %>%
-	dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
-	dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
-	dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
-	dplyr::mutate(index = 1:nrow(.)) %>%
-	ggplot(aes(x = index, y = `Wilks.lambda`)) +
-	geom_line(stat = "identity", size = .5) +
-	geom_point(data = wilks_ %>%
-		   	  .[["results"]] %>%
-		   	  dplyr::as_tibble() %>%
-		   	  dplyr::rename(variable  = vars) %>%
-		   	  dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
-		   	  dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
-		   	  dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
-		   	  dplyr::mutate(index = 1:nrow(.)),
-		   mapping = aes(x = index, y = `Wilks.lambda`, shape = is_insert_size), stat = "identity", fill = "white", size = 2.5, inherit.aes = FALSE) +
-	xlab("") +
-	ylab(expression("Wilks'"~lambda)) +
-	scale_shape_manual(values = c(21, 22)) +
-	scale_x_continuous(limits = c(1, 12),
-			   breaks = seq(from = 1, to = 12, by = 1),
-			   labels =  wilks_ %>%
-				     .[["results"]] %>%
-			   	     dplyr::as_tibble() %>%
-			   	     dplyr::rename(variable  = vars) %>%
-			   	     dplyr::mutate(is_insert_size = ifelse(grepl("INSERT_SIZE", variable, fixed = TRUE), "Mean Insert Size", "Aligned Read Pairs")) %>%
-			   	     dplyr::mutate(variable = unlist(lapply(variable, function(x) { strsplit(x, "_")[[1]][1] } ))) %>%
-			   	     dplyr::mutate(variable = gsub(pattern = "`", replacement = "", x = variable)) %>%
-			   	     .[["variable"]]) +
-	scale_y_continuous(breaks = c(0.006, 0.0065, 0.007, 0.0075, 0.008, 0.0085),
-			   labels = c(".006", "", ".007", "", ".008", "")) +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
-	      axis.text.x = element_text(size = 9),
-	      axis.text.y = element_text(size = 12)) +
-	guides(shape = guide_legend(title = ""))
+# Process wilks_ results once — reused for geom_line, geom_point, and axis labels
+wilks_tbl <- wilks_$results %>%
+  dplyr::as_tibble() %>%
+  dplyr::rename(variable = vars) %>%
+  dplyr::mutate(
+    is_insert_size = dplyr::if_else(
+      grepl("INSERT_SIZE", variable, fixed = TRUE),
+      "Mean Insert Size",
+      "Aligned Read Pairs"
+    ),
+    variable = parse_gene(variable),
+    variable = gsub("`", "", variable, fixed = TRUE),
+    index    = seq_len(n())
+  )
 
+plot_wilks <- wilks_tbl %>%
+  ggplot(aes(x = index, y = Wilks.lambda)) +
+  geom_line(stat = "identity", linewidth = 0.5) +
+  geom_point(
+    mapping     = aes(x = index, y = Wilks.lambda, shape = is_insert_size),
+    stat        = "identity",
+    fill        = "white",
+    size        = 2.5,
+    inherit.aes = FALSE
+  ) +
+  xlab("") +
+  ylab(expression("Wilks'" ~ lambda)) +
+  scale_shape_manual(values = c(21, 22)) +
+  scale_x_continuous(
+    limits = c(1, 12),
+    breaks = seq(1, 12, by = 1),
+    labels = wilks_tbl$variable
+  ) +
+  scale_y_continuous(
+    breaks = c(0.006, 0.0065, 0.007, 0.0075, 0.008, 0.0085),
+    labels = c(".006", "", ".007", "", ".008", "")
+  ) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 9),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(shape = guide_legend(title = ""))
 ```
+
 ```{r plot_posterior_pr, eval = TRUE, include = FALSE}
 
-plot_post_pr <- do.call(cbind, res_) %>%
-	dplyr::as_tibble() %>%
-	dplyr::mutate(set = "training") %>%
-	dplyr::bind_rows(
-		do.call(cbind, out_) %>%
-		dplyr::as_tibble() %>%
-		dplyr::mutate(set = "outgroup")
-	) %>%
-	dplyr::mutate(class = factor(class, levels = c(1, 2), ordered = TRUE)) %>%
-	dplyr::mutate(set = factor(set, levels = c("training", "outgroup"), ordered = TRUE)) %>%
-	ggplot(aes(x = class:set, y = log10(`+ve`))) +
-	geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
-	geom_jitter(data = do.call(cbind, res_) %>%
-		    dplyr::as_tibble() %>%
-		    dplyr::mutate(set = "training") %>%
-		    dplyr::bind_rows(
-			    do.call(cbind, out_) %>%
-			    dplyr::as_tibble() %>%
-			    dplyr::mutate(set = "outgroup")
-		    ) %>%
-		    dplyr::mutate(class = factor(class, levels = c(1, 2), ordered = TRUE)) %>%
-		    dplyr::mutate(set = factor(set, levels = c("training", "outgroup"), ordered = TRUE)),
-		    mapping = aes(x = class:set, y = log10(`+ve`), fill = set),
-		    stat = "identity", width = .1, height = 0, shape = 21, alpha = .85, size = 3) +
-	scale_fill_manual(values = c("training" = "#377eb8",
-				     "outgroup" = "#e41a1c")) +
-	scale_x_discrete(breaks = c("1:training", "2:training", "2:outgroup"),
-			 labels = c("+ve", "-ve", "Outgroup")) +
-	scale_y_continuous(limits = c(-200, 35),
-			   breaks = c(-200, -175, -150, -125, -100, -75, -50, -25, 0),
-			   labels = c(-200, "", -150, "", -100, "", -50, "", 0)) +
-	xlab("") +
-	ylab(expression("Posterior Probability ("~-log[10]~")")) +
-	geom_signif(stat = "signif",
-		    comparisons = list(c("1:training", "2:training")),
-		    test = "wilcox.test",
-		    test.args = list(alternative = "two.sided", exact = FALSE),
-		    y_position = 15, vjust = -.5,
-		    tip_length = 0.02) +
-	theme_classic() +
-	theme(axis.title.x = element_text(margin = margin(t = 20), size = 12),
-	      axis.title.y = element_text(margin = margin(r = 20), size = 12),
-	      axis.text.x = element_text(size = 10),
-	      axis.text.y = element_text(size = 12)) +
-	guides(fill = FALSE)
+# Build combined training + outgroup posterior probability tibble once
+post_pr_df <- dplyr::bind_rows(
+  do.call(cbind, res_) %>% dplyr::as_tibble() %>% dplyr::mutate(set = "training"),
+  do.call(cbind, out_) %>% dplyr::as_tibble() %>% dplyr::mutate(set = "outgroup")
+) %>%
+  dplyr::mutate(
+    class = factor(class, levels = c(1, 2), ordered = TRUE),
+    set   = factor(set,   levels = c("training", "outgroup"), ordered = TRUE)
+  )
+
+plot_post_pr <- post_pr_df %>%
+  ggplot(aes(x = class:set, y = log10(`+ve`))) +
+  geom_boxplot(stat = "boxplot", outlier.shape = NA, fill = "white", show.legend = FALSE) +
+  geom_jitter(
+    data    = post_pr_df,
+    mapping = aes(x = class:set, y = log10(`+ve`), fill = set),
+    stat    = "identity",
+    width   = 0.1,
+    height  = 0,
+    shape   = 21,
+    alpha   = 0.85,
+    size    = 3
+  ) +
+  scale_fill_manual(values = c("training" = "#377eb8", "outgroup" = "#e41a1c")) +
+  scale_x_discrete(
+    breaks = c("1:training", "2:training", "2:outgroup"),
+    labels = c("+ve", "-ve", "Outgroup")
+  ) +
+  scale_y_continuous(
+    limits = c(-200, 35),
+    breaks = c(-200, -175, -150, -125, -100, -75, -50, -25, 0),
+    labels = c(-200, "", -150, "", -100, "", -50, "", 0)
+  ) +
+  xlab("") +
+  ylab(expression("Posterior Probability (" ~ -log[10] ~ ")")) +
+  geom_signif(
+    stat        = "signif",
+    comparisons = list(c("1:training", "2:training")),
+    test        = "wilcox.test",
+    test.args   = list(alternative = "two.sided", exact = FALSE),
+    y_position  = 15,
+    vjust       = -0.5,
+    tip_length  = 0.02
+  ) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 10),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(fill = "none")
 ```
 
 <br/>

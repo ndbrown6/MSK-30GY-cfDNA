@@ -1,5 +1,5 @@
 ---
-title: "Supplementary Figure S6 - Applying machine learning model for detecting tumor-derived circulating HPV (cHPV) DNA in plasma samples from ingroup test set"
+title: "Supplementary Figure S5 - Cross-correlation of HPV-16 gene-level read pairs and insert sizes in the training set"
 author:
   - name: David N Brown, Bill H Diplas
     affiliation: Memorial Sloan Kettering Cancer Center
@@ -14,10 +14,11 @@ suppressPackageStartupMessages({
   library("ggplot2")
   library("readr")
   library("dplyr")
-  library("tidyr")
   library("magrittr")
   library("reshape2")
-  library("MASS")
+  library("corrplot")
+  library("RColorBrewer")
+  library("fuzzyjoin")
 })
 
 # --- Data paths ---
@@ -28,6 +29,8 @@ url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
 url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
 url_mutation_summary         <- "../data/mutation_summary.maf"
 url_insert_metrics_by_gene   <- "../data/insert_metrics_by_gene.txt"
+url_hs_target_metrics        <- "../data/hs_metrics_target.txt"
+url_hs_target_metrics_ft     <- "../data/hs_metrics_target_ft.txt"
 url_bed_file                 <- "../data/hpv_31_33_35H_16_18.bed"
 
 target_contigs <- c(
@@ -46,16 +49,7 @@ contig_to_hpv <- c(
   "X74477.1"   = "HPV-35"
 )
 
-target_names <- c(
-  "E1_1:1950", "E2_1891:2989", "E5_2985:3237",
-  "E6_7124:7601", "E7_7603:7900", "L1_4774:6292"
-)
-
-N_TILES <- 250
-
-scientific_1e <- function(x) {
-  parse(text = gsub("+", "", gsub("1e", " 10^", scales::scientific_format()(x)), fixed = TRUE))
-}
+gene_order <- c("E6", "E7", "E1", "E2", "E5", "L1")
 ```
 
 ```{r load_shared_data, eval = TRUE, include = FALSE}
@@ -131,6 +125,37 @@ insert_metrics_by_gene <- readr::read_tsv(
   dplyr::rename(sample_name = SAMPLE_NAME) %>%
   dplyr::filter(TARGET_REGION != "NC001526.4:3372-4794")
 
+hs_metrics <- readr::read_tsv(
+  url_hs_target_metrics, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name    = SAMPLE_NAME,
+    chromosome     = chrom,
+    start, end,
+    aligned_reads  = read_count
+  ) %>%
+  dplyr::filter(chromosome %in% target_contigs) %>%
+  fuzzyjoin::genome_left_join(bed_file, by = c("chromosome", "start", "end")) %>%
+  dplyr::select(-chromosome.y, -start.y, -end.y) %>%
+  dplyr::rename(chromosome = chromosome.x, start = start.x, end = end.x)
+
+hs_metrics_ft <- readr::read_tsv(
+  url_hs_target_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    chromosome      = chrom,
+    start, end,
+    aligned_reads   = read_count,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::filter(chromosome %in% target_contigs) %>%
+  fuzzyjoin::genome_left_join(bed_file, by = c("chromosome", "start", "end")) %>%
+  dplyr::select(-chromosome.y, -start.y, -end.y) %>%
+  dplyr::rename(chromosome = chromosome.x, start = start.x, end = end.x)
+
 # --- ctDNA-positive training set ---
 smry_t_pos <- mutation_smry %>%
   dplyr::filter(FILTER == "PASS") %>%
@@ -180,7 +205,7 @@ smry_ft <- dplyr::bind_rows(
   dplyr::select(smry_t_neg, all_of(shared_cols))
 )
 
-# --- Base insert-size metrics joined once ---
+# --- Shared base: insert metrics joined to mutation AF and manifest ---
 mut_af_smry <- mutation_smry %>%
   dplyr::filter(FILTER == "PASS") %>%
   dplyr::group_by(Tumor_Sample_Barcode) %>%
@@ -211,181 +236,105 @@ smry_base <- insert_metrics_by_gene %>%
     start_end     = paste0(start, ":", end),
     aligned_reads = log10(READ_PAIRS + 1),
     insert_size   = log10(MEAN_INSERT_SIZE + 1)
-  )
-```
-
-```{r build_lda_plot_s6, eval = TRUE, include = FALSE}
-
-# --- Helper: pivot wide into LDA feature matrix ---
-pivot_to_matrix <- function(df, label_col = NULL) {
-  id_vars <- c("sample_name", label_col)
-
-  reads_wide <- reshape2::dcast(
-    df,
-    formula   = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
-    value.var = "aligned_reads",
-    fill      = 0
   ) %>%
-    dplyr::rename(
-      `E1_1:1950_READ_COUNT`    = `E1_1:1950`,
-      `E2_1891:2989_READ_COUNT` = `E2_1891:2989`,
-      `E5_2985:3237_READ_COUNT` = `E5_2985:3237`,
-      `E6_7124:7601_READ_COUNT` = `E6_7124:7601`,
-      `E7_7603:7900_READ_COUNT` = `E7_7603:7900`,
-      `L1_4774:6292_READ_COUNT` = `L1_4774:6292`
-    )
-
-  ins_wide <- reshape2::dcast(
-    df,
-    formula   = as.formula(paste(paste(id_vars, collapse = " + "), "~ gene_name + start_end")),
-    value.var = "insert_size",
-    fill      = 0
-  ) %>%
-    dplyr::rename(
-      `E1_1:1950_INSERT_SIZE`    = `E1_1:1950`,
-      `E2_1891:2989_INSERT_SIZE` = `E2_1891:2989`,
-      `E5_2985:3237_INSERT_SIZE` = `E5_2985:3237`,
-      `E6_7124:7601_INSERT_SIZE` = `E6_7124:7601`,
-      `E7_7603:7900_INSERT_SIZE` = `E7_7603:7900`,
-      `L1_4774:6292_INSERT_SIZE` = `L1_4774:6292`
-    )
-
-  dplyr::left_join(reads_wide, ins_wide, by = id_vars) %>%
-    tibble::column_to_rownames(var = "sample_name")
-}
-
-# --- Helper: LDA simulation grid ---
-make_sim_grid <- function(n_tiles = N_TILES) {
-  ar  <- seq(0, 6, length.out = n_tiles)
-  ins <- seq(0, 3, length.out = n_tiles)
-  dplyr::tibble(insert_size = rep(ins, each = n_tiles), aligned_reads = rep(ar, n_tiles)) %>%
-    dplyr::mutate(
-      `E1_1:1950_READ_COUNT`     = aligned_reads,
-      `E2_1891:2989_READ_COUNT`  = aligned_reads,
-      `E5_2985:3237_READ_COUNT`  = aligned_reads,
-      `E6_7124:7601_READ_COUNT`  = aligned_reads,
-      `E7_7603:7900_READ_COUNT`  = aligned_reads,
-      `L1_4774:6292_READ_COUNT`  = aligned_reads,
-      `E1_1:1950_INSERT_SIZE`    = insert_size,
-      `E2_1891:2989_INSERT_SIZE` = insert_size,
-      `E5_2985:3237_INSERT_SIZE` = insert_size,
-      `E6_7124:7601_INSERT_SIZE` = insert_size,
-      `E7_7603:7900_INSERT_SIZE` = insert_size,
-      `L1_4774:6292_INSERT_SIZE` = insert_size
-    ) %>%
-    dplyr::select(-aligned_reads, -insert_size)
-}
-
-mat_ <- make_sim_grid()
-
-# --- Prepare training and ingroup test matrices ---
-smry_train <- smry_base %>%
   dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
-  dplyr::filter(!is.na(Is_ctDNA), chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16") %>%
+  dplyr::filter(!is.na(Is_ctDNA)) %>%
   dplyr::mutate(
     Is_ctDNA = dplyr::case_when(
       hpv_type_wes_wgs == "HPV-16" & Is_ctDNA == "+ve" ~ "+ve",
       TRUE ~ "-ve"
     ),
     Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
-  )
-
-smry_test <- smry_base %>%
-  dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
-  dplyr::filter(is.na(Is_ctDNA), chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16") %>%
-  dplyr::left_join(mrd_smry, by = c("sample_name", "sample_uuid")) %>%
-  dplyr::mutate(
-    Is_ctDNA = dplyr::case_when(
-      `MRD-Monitoring_Result` == "PRESENT" ~ "+ve",
-      `MRD-Monitoring_Result` == "ABSENT"  ~ "-ve"
-    ),
-    Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE)
-  )
-
-data_ <- pivot_to_matrix(smry_train, label_col = "Is_ctDNA") %>%
-  dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
-
-test_ <- pivot_to_matrix(smry_test, label_col = "Is_ctDNA") %>%
-  dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("+ve", "-ve"), ordered = TRUE))
-
-# --- Per-gene LDA loop ---
-observed  <- vector("list", length(target_names))
-simulated <- vector("list", length(target_names))
-
-for (i in seq_along(target_names)) {
-  rc_col  <- paste0(target_names[i], "_READ_COUNT")
-  ins_col <- paste0(target_names[i], "_INSERT_SIZE")
-
-  fit_ <- MASS::lda(Is_ctDNA ~ ., data = dplyr::select(data_, all_of(c("Is_ctDNA", rc_col, ins_col))))
-  res_ <- predict(fit_, newdata = dplyr::select(test_, all_of(c(rc_col, ins_col))))
-  sim_ <- predict(fit_, newdata = dplyr::select(mat_,  all_of(c(rc_col, ins_col))))
-
-  observed[[i]] <- test_ %>%
-    dplyr::mutate(Pr = res_$posterior[, "+ve"]) %>%
-    dplyr::select(all_of(c("Is_ctDNA", "Pr", rc_col, ins_col))) %>%
-    dplyr::rename(read_count = !!rc_col, insert_size = !!ins_col) %>%
-    dplyr::mutate(target_name = target_names[i])
-
-  simulated[[i]] <- mat_ %>%
-    dplyr::mutate(Pr = sim_$posterior[, "+ve"]) %>%
-    dplyr::select(all_of(c("Pr", rc_col, ins_col))) %>%
-    dplyr::rename(read_count = !!rc_col, insert_size = !!ins_col) %>%
-    dplyr::mutate(target_name = target_names[i])
-}
-
-# --- Helper: sort facets by gene end position ---
-parse_end <- function(df) {
-  df %>%
-    dplyr::mutate(
-      end = gsub("E1_1:|E2_1891:|E5_2985:|E6_7124:|E7_7603:|L1_4774:", "", target_name, perl = TRUE)
-    ) %>%
-    readr::type_convert() %>%
-    dplyr::arrange(end) %>%
-    dplyr::mutate(target_name = factor(target_name, levels = unique(target_name), ordered = TRUE))
-}
-
-plot_lda <- parse_end(do.call(rbind, observed)) %>%
-  ggplot(aes(x = read_count, y = insert_size, shape = Is_ctDNA)) +
-  geom_rect(
-    data    = parse_end(do.call(rbind, simulated)),
-    mapping = aes(
-      xmin = read_count - 0.025, xmax = read_count + 0.025,
-      ymin = insert_size - 0.015, ymax = insert_size + 0.015,
-      fill = Pr
-    ),
-    alpha       = 0.25,
-    inherit.aes = FALSE
-  ) +
-  scale_fill_continuous(low = "#e7e1ef", high = "#c51b8a", breaks = c(0.1, 0.3, 0.5, 0.7, 0.9)) +
-  geom_point(stat = "identity", fill = NA, color = "#a50f15", alpha = 0.55, size = 1.85) +
-  scale_shape_manual(values = c("+ve" = 3, "-ve" = 4)) +
-  xlab("Number of Read Pairs Aligned") +
-  ylab("Mean Insert Size (bp)") +
-  scale_x_continuous(
-    breaks = log10(c(0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6) + 1),
-    labels = scientific_1e(c(1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6))
-  ) +
-  scale_y_continuous(
-    limits = log10(c(15, 150) + 1),
-    breaks = log10(c(25, 50, 75, 100, 125) + 1),
-    labels = c(25, 50, 75, 100, 125)
-  ) +
-  facet_wrap(~target_name, ncol = 3, scales = "free") +
-  theme_classic() +
-  theme(
-    axis.title.x     = element_text(margin = ggplot2::margin(t = 20)),
-    axis.title.y     = element_text(margin = ggplot2::margin(r = 20)),
-    axis.text.x      = element_text(size = 8),
-    panel.spacing    = unit(1, "lines"),
-    strip.background = element_rect(colour = "white", fill = "white")
-  ) +
-  guides(
-    shape = guide_legend(title = "ctDNA",                  order = 1),
-    fill  = guide_colorbar(title = "Posterior\nProbability", order = 2)
-  )
+  ) %>%
+  dplyr::filter(chromosome == "HPV-16", hpv_type_wes_wgs == "HPV-16")
 ```
 
-```{r plot_lda_30gy_insert_sizes_and_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5.5, fig.width = 8.49, fig.cap = '<br/>**Figure S6** Scatter plots of number of read pairs versus mean insert sizes of reads aligned to HPV-16 genes in training plasma samples, classified as ctDNA positive or negative by the PCM assay.'}
+```{r build_corrplots, eval = TRUE, include = FALSE}
 
-print(plot_lda)
+# --- Helper: build pairwise Spearman correlation matrix from a wide dcast tibble ---
+build_corr_matrix <- function(wide_df) {
+  # Identify gene columns (everything after sample_name and Is_ctDNA)
+  gene_cols <- colnames(wide_df)[-c(1, 2)]
+  gene_cols <- gene_cols[order(vapply(gene_cols, function(x) strsplit(x, "_")[[1]][2], character(1)))]
+
+  pairs <- do.call(rbind, lapply(seq_len(length(gene_cols) - 1), function(i) {
+    do.call(rbind, lapply(seq(i + 1, length(gene_cols)), function(j) {
+      xi <- wide_df[[gene_cols[i]]]
+      xj <- wide_df[[gene_cols[j]]]
+      dplyr::tibble(
+        rho  = cor.test(xi, xj, method = "spearman")$estimate,
+        xlab = gene_cols[i],
+        ylab = gene_cols[j]
+      )
+    }))
+  }))
+
+  all_genes <- unique(c(pairs$xlab, pairs$ylab))
+  m <- matrix(1, nrow = length(all_genes), ncol = length(all_genes),
+              dimnames = list(all_genes, all_genes))
+  for (k in seq_len(nrow(pairs))) {
+    m[pairs$xlab[k], pairs$ylab[k]] <- pairs$rho[k]
+    m[pairs$ylab[k], pairs$xlab[k]] <- pairs$rho[k]
+  }
+
+  # Simplify row/col names to gene label (e.g. "E1_1:1950" → "E1")
+  gene_labels <- vapply(rownames(m), function(x) strsplit(x, "_")[[1]][1], character(1))
+  rownames(m) <- gene_labels
+  colnames(m) <- gene_labels
+  m
+}
+
+# --- Helper: render a corrplot with shared styling ---
+draw_corrplot <- function(m) {
+  corrplot::corrplot(
+    corr        = m[gene_order, gene_order],
+    method      = "circle",
+    type        = "lower",
+    col         = colorRampPalette(RColorBrewer::brewer.pal(n = 11, name = "RdBu"))(25),
+    is.corr     = FALSE,
+    diag        = FALSE,
+    addgrid.col = NA,
+    addCoef.col = "black",
+    order       = "original",
+    number.cex  = 0.55,
+    number.font = 1,
+    tl.cex      = 1,
+    tl.col      = "black",
+    cl.pos      = "r",
+    cl.ratio    = 0.25,
+    cl.length   = 7
+  )
+}
+
+# --- S5a: aligned read pairs ---
+wide_reads <- smry_base %>%
+  reshape2::dcast(
+    formula   = sample_name + Is_ctDNA ~ gene_name + start_end,
+    value.var = "aligned_reads"
+  )
+
+corr_matrix_reads <- build_corr_matrix(wide_reads)
+
+# --- S5b: mean insert size ---
+wide_insert <- smry_base %>%
+  reshape2::dcast(
+    formula   = sample_name + Is_ctDNA ~ gene_name + start_end,
+    value.var = "insert_size"
+  )
+
+corr_matrix_insert <- build_corr_matrix(wide_insert)
+```
+
+<br/>
+
+```{r plot_corrplot_reads, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S5a** Cross-correlation matrix of HPV-16 gene-level aligned read pairs across training set samples.'}
+
+draw_corrplot(corr_matrix_reads)
+```
+
+<br/>
+
+```{r plot_corrplot_insert_size, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S5b** Cross-correlation matrix of HPV-16 gene-level mean insert sizes across training set samples.'}
+
+draw_corrplot(corr_matrix_insert)
 ```
