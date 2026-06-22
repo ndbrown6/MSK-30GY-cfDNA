@@ -1,0 +1,419 @@
+---
+title: "Supplementary Figure S7 - Resolving discordances in ctDNA detection between PCM and HPV assays in training and test sets"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("magrittr")
+  library("MASS")
+  library("ggpubr")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_primers                  <- "../data/HPV_primers.bed"
+url_insert_metrics           <- "../data/insert_metrics.txt"
+url_insert_summary_ft        <- "../data/insert_summary_ft.txt"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+mrd_smry <- readr::read_tsv(
+  url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    sample_uuid = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE),
+    sample_name = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE)
+  )
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+nodal_dissection_smry <- readr::read_tsv(
+  url_no_node_dissection, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(patient_id_mskcc = sample)
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+primer_set <- readr::read_tsv(
+  url_primers, col_names = FALSE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(insert_size = X3 - X2)
+
+insert_size_metrics <- readr::read_tsv(
+  url_insert_metrics, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+insert_size_smry_ft <- readr::read_tsv(
+  url_insert_summary_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::group_by(SAMPLE_NAME, FRAGMENT_LENGTH) %>%
+  dplyr::mutate(TOTAL_READS = sum(READ_COUNT)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(`%_READS` = READ_COUNT / TOTAL_READS)
+
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+posterior_probs <- readr::read_tsv(
+  url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(Is_ctDNA__HPV = Is_ctDNA)
+
+# --- ctDNA-positive training set ---
+smry_t_pos <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode) %>%
+  dplyr::filter(mean_af > 0.05) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(hpv_type_wes_wgs %in% names(target_contigs)) %>%
+  dplyr::left_join(
+    dplyr::select(mrd_smry, sample_name, `MRD-Landmark_Result`),
+    by = "sample_name"
+  ) %>%
+  dplyr::filter(`MRD-Landmark_Result` == "PRESENT") %>%
+  dplyr::mutate(Is_ctDNA = "+ve")
+
+# --- ctDNA-negative training set ---
+neg_candidates <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), max_af = max(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode) %>%
+  dplyr::filter(mean_af < 0.0001, max_af < 0.001) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::left_join(nodal_dissection_smry, by = "patient_id_mskcc") %>%
+  dplyr::filter(nd_event == 0, timepoint_days_since_start_of_RT > 730)
+
+latest_per_patient <- neg_candidates %>%
+  dplyr::group_by(patient_id_mskcc) %>%
+  dplyr::summarize(
+    timepoint_days_since_start_of_RT = max(timepoint_days_since_start_of_RT),
+    .groups = "drop"
+  )
+
+smry_t_neg <- neg_candidates %>%
+  dplyr::inner_join(latest_per_patient, by = c("patient_id_mskcc", "timepoint_days_since_start_of_RT")) %>%
+  dplyr::left_join(
+    dplyr::select(mrd_smry, sample_name, `MRD-Landmark_Result`),
+    by = "sample_name"
+  ) %>%
+  dplyr::filter(`MRD-Landmark_Result` == "ABSENT") %>%
+  dplyr::mutate(Is_ctDNA = "-ve")
+
+shared_cols <- intersect(colnames(smry_t_pos), colnames(smry_t_neg))
+smry_ft <- dplyr::bind_rows(
+  dplyr::select(smry_t_pos, all_of(shared_cols)),
+  dplyr::select(smry_t_neg, all_of(shared_cols))
+)
+
+# --- Shared per-sample mutation AF summary ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+```
+
+```{r build_plots_S7abc, eval = TRUE, include = FALSE}
+
+# --- Helper: base insert-size data for discordance plots ---
+# SAMPLE_NAME in insert_size_smry_ft matches sample_name in manifest,
+# posterior_probs, smry_ft, and mrd_smry.
+make_discordance_base <- function() {
+  insert_size_smry_ft %>%
+    dplyr::filter(FRAGMENT_LENGTH == 0) %>%
+    dplyr::rename(sample_name = SAMPLE_NAME) %>%
+    dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
+    dplyr::filter(is.na(Is_ctDNA)) %>%
+    dplyr::select(-Is_ctDNA) %>%
+    dplyr::left_join(posterior_probs, by = "sample_name") %>%
+    dplyr::filter(!is.na(Is_ctDNA__HPV)) %>%
+    dplyr::left_join(mrd_smry, by = "sample_name") %>%
+    dplyr::mutate(
+      Is_ctDNA__MRD = dplyr::case_when(
+        `MRD-Landmark_Result` == "PRESENT" ~ "+ve",
+        TRUE ~ "-ve"
+      )
+    )
+}
+
+# --- Helper: shared ggplot styling for insert-size discordance plots ---
+insert_size_plot <- function(df, x_breaks) {
+  df %>%
+    ggplot(aes(x = INSERT_SIZE, y = READ_COUNT, group = sample_name)) +
+    geom_vline(xintercept = range(primer_set$insert_size), linetype = 3, linewidth = 0.5, color = "red") +
+    geom_smooth(
+      stat = "smooth", method = "loess", formula = y ~ x,
+      color = "#1b9e77", se = FALSE, linewidth = 0.25, n = 250, span = 0.1
+    ) +
+    scale_x_sqrt(limits = c(10, 500), breaks = x_breaks, labels = x_breaks) +
+    scale_y_continuous(limits = c(0, 500), labels = scientific_10) +
+    xlab("Insert Size (bp)") +
+    ylab("Number of Aligned Read Pairs") +
+    theme_classic() +
+    theme(
+      axis.title.x     = element_text(margin = ggplot2::margin(t = 20), size = 12),
+      axis.title.y     = element_text(margin = ggplot2::margin(r = 20), size = 12),
+      axis.text.x      = element_text(size = 11),
+      axis.text.y      = element_text(size = 12),
+      strip.background = element_rect(colour = "white", fill = "white")
+    )
+}
+
+base_ <- make_discordance_base()
+x_breaks_default <- c(10, 25, 50, 100, 200, 300, 400, 500)
+
+# --- S7a: false negatives (HPV -ve, MRD +ve) ---
+plot_false_neg <- base_ %>%
+  dplyr::filter(Is_ctDNA__HPV == "-ve", Is_ctDNA__MRD == "+ve") %>%
+  insert_size_plot(x_breaks = x_breaks_default)
+
+# --- S7b: true negatives (HPV -ve, MRD -ve) from non-HPV-16 patients ---
+# MEAN_INSERT_SIZE and MAX_INSERT_SIZE are per-sample summary columns from
+# insert_size_metrics (url_insert_metrics), not from the per-fragment distribution.
+plot_true_neg <- insert_size_smry_ft %>%
+  dplyr::filter(FRAGMENT_LENGTH == 0) %>%
+  dplyr::rename(sample_name = SAMPLE_NAME) %>%
+  dplyr::left_join(dplyr::select(manifest, sample_name, hpv_type_wes_wgs), by = "sample_name") %>%
+  dplyr::filter(!hpv_type_wes_wgs %in% c("HPV-16", "Unknown")) %>%
+  dplyr::left_join(
+    insert_size_metrics %>%
+      dplyr::rename(sample_name = SAMPLE_NAME) %>%
+      dplyr::filter(MEAN_INSERT_SIZE <= 30, MAX_INSERT_SIZE <= 175) %>%
+      dplyr::mutate(is_present = TRUE) %>%
+      dplyr::select(sample_name, is_present),
+    by = "sample_name"
+  ) %>%
+  dplyr::filter(is_present) %>%
+  dplyr::select(-hpv_type_wes_wgs, -is_present) %>%
+  insert_size_plot(x_breaks = x_breaks_default)
+
+# --- S7c: false positives (HPV +ve, MRD -ve) ---
+plot_false_pos <- base_ %>%
+  dplyr::filter(Is_ctDNA__HPV == "+ve", Is_ctDNA__MRD == "-ve") %>%
+  insert_size_plot(x_breaks = x_breaks_default)
+```
+
+```{r build_plots_S7de, eval = TRUE, include = FALSE}
+
+idx_ <- idx_metrics_ft %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    contig          = CHROMOSOME,
+    aligned_reads   = ALIGNED_READS,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::left_join(
+    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
+    by = "contig"
+  ) %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(
+    chromosome == hpv_type_wes_wgs,
+    timepoint_days_since_start_of_RT < 0,
+    hpv_type_wes_wgs == "HPV-16"
+  ) %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+  dplyr::filter(!is.na(hpv_panel_copy_number), !is.na(aligned_reads), !is.na(mean_af))
+
+fit_ <- stats::lm(
+  formula = aligned_reads ~ hpv_panel_copy_number,
+  data    = idx_ %>%
+    dplyr::mutate(
+      aligned_reads         = log10(aligned_reads),
+      hpv_panel_copy_number = log10(hpv_panel_copy_number)
+    ) %>%
+    as.data.frame()
+)
+
+# --- S7d: mean AF vs cfDNA read pairs ---
+plot_maf_readcounts <- idx_ %>%
+  ggplot(aes(x = (mean_af * 100) + 1e-3, y = aligned_reads)) +
+  geom_smooth(
+    stat = "smooth", method = "lm", formula = y ~ x,
+    color = "goldenrod3", linewidth = 1.25, se = FALSE
+  ) +
+  geom_point(stat = "identity", shape = 21, fill = "white", color = "#1b9e77", alpha = 0.75, size = 2.5) +
+  ggpubr::stat_cor(
+    mapping = aes(x = (mean_af * 100) + 1e-3, y = aligned_reads),
+    method = "spearman", label.x = log10(1e-3), label.y = log10(1e7),
+    size = 4, inherit.aes = FALSE
+  ) +
+  scale_x_log10(
+    limits = c(1e-3, 110),
+    breaks = c(0.001, 0.01, 0.1, 1, 10, 100),
+    labels = c("0", ".01", ".1", "1", "10", "100")
+  ) +
+  scale_y_log10(
+    limits = 10^c(2, 7),
+    breaks = 10^c(2, 3, 4, 5, 6, 7),
+    labels = scientific_10
+  ) +
+  xlab("Mean AF (%)") +
+  ylab("cfDNA Aligned HPV Read Pairs") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  )
+
+# --- S7e: mean AF vs copy-number-adjusted cfDNA read pairs ---
+plot_maf_readcounts_adj <- idx_ %>%
+  dplyr::mutate(aligned_reads_residuals = 10^fit_$residuals) %>%
+  ggplot(aes(x = (mean_af * 100) + 1e-3, y = aligned_reads_residuals)) +
+  geom_smooth(
+    stat = "smooth", method = "lm", formula = y ~ x,
+    color = "goldenrod3", linewidth = 1.25, se = FALSE
+  ) +
+  geom_point(stat = "identity", shape = 22, fill = "white", color = "#1b9e77", alpha = 0.75, size = 2.75) +
+  ggpubr::stat_cor(
+    data    = idx_ %>% dplyr::mutate(aligned_reads_residuals = 10^fit_$residuals),
+    mapping = aes(x = (mean_af * 100) + 1e-3, y = aligned_reads_residuals),
+    method = "spearman", label.x = log10(1e-3), label.y = log10(200),
+    size = 4, inherit.aes = FALSE
+  ) +
+  scale_x_log10(
+    limits = c(1e-3, 110),
+    breaks = c(0.001, 0.01, 0.1, 1, 10, 100),
+    labels = c("0", ".01", ".1", "1", "10", "100")
+  ) +
+  scale_y_log10(limits = c(1e-2, 200), labels = scientific_10) +
+  xlab("Mean AF (%)") +
+  ylab("cfDNA Adjusted HPV Read Pairs") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  )
+```
+
+<br/>
+<br/>
+
+```{r plot_7a, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7a** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM+ve / HPV-ve samples in the ingroup test set.'}
+
+print(plot_false_neg)
+```
+
+<br/>
+<br/>
+
+```{r plot_7b, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7b** Distribution of insert sizes of read pairs aligned to HPV-16 for samples in the outgroup test set i.e. HPV-18, -33, -35, -58.'}
+
+print(plot_true_neg)
+```
+
+<br/>
+<br/>
+
+```{r plot_7c, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7c** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM-ve / HPV+ve samples, which exhibiting a broad distribution between 75–100 bp.'}
+
+print(plot_false_pos)
+```
+
+<br/>
+<br/>
+
+```{r plot_7d, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7d** Scatter plot showing the correlation between the raw number of cfDNA aligned HPV-16 read pairs and the ctDNA fraction.'}
+
+print(plot_maf_readcounts)
+```
+
+<br/>
+<br/>
+
+```{r plot_7e, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7e** Scatter plot showing the correlation between the number of cfDNA aligned HPV-16 read pairs adjusted for primary tumor HPV copies and the ctDNA fraction.'}
+
+print(plot_maf_readcounts_adj)
+```
