@@ -1,0 +1,255 @@
+---
+title: "Supplementary Figure S10 - Distribution of weekly MRI tumor volume"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("tidyr")
+  library("magrittr")
+  library("reshape2")
+  library("ggsignif")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+mrd_smry <- readr::read_tsv(
+  url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    sample_uuid = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE),
+    sample_name = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE)
+  )
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+nodal_dissection_smry <- readr::read_tsv(
+  url_no_node_dissection, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(patient_id_mskcc = sample)
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+posterior_probs <- readr::read_tsv(
+  url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT / 7),
+    timepoint_weeks_since_start_of_RT = dplyr::case_when(
+      timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+      TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+    )
+  )
+
+# --- Per-sample mutation AF summary ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+
+# --- Index metrics: per-sample per-contig aligned read pairs at target fragment length ---
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    contig          = CHROMOSOME,
+    aligned_reads   = ALIGNED_READS,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::left_join(
+    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
+    by = "contig"
+  ) %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(chromosome == hpv_type_wes_wgs) %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::mutate(
+    timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT / 7),
+    timepoint_weeks_since_start_of_RT = dplyr::case_when(
+      timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+      TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+    )
+  )
+
+# --- Per-patient HPV type lookup ---
+hpv_type_per_patient <- manifest %>%
+  dplyr::group_by(patient_id_mskcc) %>%
+  dplyr::summarize(hpv_type_wes_wgs = unique(hpv_type_wes_wgs), .groups = "drop")
+```
+
+```{r build_plots_S10, eval = TRUE, include = FALSE}
+
+# ctDNA direction at week 2 relative to pre-treatment (per patient)
+# Note: MRI volumes use a one-week offset — wk1/2/3 MRI are drawn from
+# MRI_rawdata_wk2/3/4 to align with the post-draw imaging schedule.
+ctdna_direction <- idx_metrics_ft %>%
+  dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
+  dplyr::summarize(mean_af = mean(mean_af + 1e-5, na.rm = TRUE), .groups = "drop") %>%
+  reshape2::dcast(
+    formula      = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+    fun.aggregate = function(x) mean(x, na.rm = TRUE),
+    fill         = NaN,
+    value.var    = "mean_af"
+  ) %>%
+  dplyr::select(patient_id_mskcc, `Pre-treatment`, wk2) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    q2 = dplyr::case_when(
+      wk2 / `Pre-treatment` >= 1 ~ "Increasing",
+      wk2 / `Pre-treatment` <  1 ~ "Decreasing",
+      TRUE                       ~ NA_character_
+    )
+  ) %>%
+  dplyr::select(patient_id_mskcc, q2)
+
+# MRI volume wide → long, joined with ctDNA direction
+plot_mri <- clinical %>%
+  dplyr::select(
+    patient_id_mskcc,
+    `Pre-treatment` = MRI_rawdata_wk0,
+    wk1             = MRI_rawdata_wk2,   # one-week imaging offset
+    wk2             = MRI_rawdata_wk3,
+    wk3             = MRI_rawdata_wk4
+  ) %>%
+  dplyr::full_join(ctdna_direction, by = "patient_id_mskcc") %>%
+  reshape2::melt(
+    id.vars      = c("patient_id_mskcc", "q2"),
+    variable.name = "week",
+    value.name   = "MRI"
+  ) %>%
+  readr::type_convert() %>%
+  tidyr::drop_na() %>%
+  ggplot(aes(x = q2, y = MRI / 1000, shape = week, color = week)) +
+  geom_boxplot(stat = "boxplot", outlier.shape = NA, color = "black") +
+  geom_jitter(stat = "identity", width = 0.1, height = 0, fill = "white", size = 3, alpha = 0.95) +
+  scale_shape_manual(values = c(
+    "Pre-treatment" = 21, "wk1" = 22, "wk2" = 23, "wk3" = 24
+  )) +
+  scale_color_manual(values = c(
+    "Pre-treatment" = "#1b9e77",
+    "wk1"           = "#d95f02",
+    "wk2"           = "#7570b3",
+    "wk3"           = "#e7298a"
+  )) +
+  scale_x_discrete(
+    breaks = c("Decreasing", "Increasing"),
+    labels = c("-ve", "+ve")
+  ) +
+  scale_y_continuous(
+    limits = c(0, 60),
+    breaks = c(0, 10, 20, 30, 40, 50),
+    labels = c(0, 10, 20, 30, 40, 50)
+  ) +
+  geom_signif(
+    mapping     = aes(x = q2, y = MRI / 1000),
+    stat        = "signif",
+    comparisons = list(c("Decreasing", "Increasing")),
+    test        = "wilcox.test",
+    test.args   = list(alternative = "greater", exact = FALSE),
+    y_position  = 52,
+    vjust       = -0.25,
+    textsize    = 3.25,
+    tip_length  = 0.01,
+    inherit.aes = FALSE
+  ) +
+  xlab(expression(Delta[Week2 - Pre - treatment] ~ "ctDNA Fraction")) +
+  ylab(expression("MRI Volume " (cm^3))) +
+  theme_classic() +
+  theme(
+    axis.title.x     = element_text(margin = ggplot2::margin(t = 20), size = 9),
+    axis.title.y     = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x      = element_text(margin = ggplot2::margin(t = 7),  size = 9),
+    axis.text.y      = element_text(size = 12),
+    strip.background = element_blank()
+  ) +
+  guides(color = "none", shape = "none") +
+  facet_wrap(~week, nrow = 1)
+```
+
+<br/>
+<br/>
+
+```{r plot_mri, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 4.5, fig.cap = '<br/>**Supplementary Figure S10** Box plots comparing weekly MRI tumor volume between patients with decreasing (-ve) and increasing (+ve) ctDNA fraction at week 2 on-treatment relative to baseline.'}
+
+print(plot_mri)
+```
