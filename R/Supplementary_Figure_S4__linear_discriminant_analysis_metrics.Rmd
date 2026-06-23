@@ -441,7 +441,7 @@ plot_post_pr <- post_pr_df %>%
 <br/>
 <br/>
 
-```{r figure_s4ab, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5.5, fig.cap = '<br/>**Supplementary Figure S4a,b** Forest plots showing the standardized coefficients of the LDA where variables representing HPV-16 genes are grouped in (a) number of aligned reads pairs and (b) mean insert size.'}
+```{r figure_lda_coeff, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5.5, fig.cap = '<br/>**Supplementary Figure S4a,b** Forest plots showing the standardized coefficients of the LDA where variables representing HPV-16 genes are grouped in (a) number of aligned reads pairs and (b) mean insert size.'}
 
 print(plot_lda_coeff)
 ```
@@ -449,7 +449,7 @@ print(plot_lda_coeff)
 <br/>
 <br/>
 
-```{r figure_s4c, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S4c** Forward feature selection using the greedy Wilk\'s objective function.'}
+```{r figure_greedy_wilks, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 5, fig.cap = '<br/>**Supplementary Figure S4c** Forward feature selection using the greedy Wilk\'s objective function.'}
 
 print(plot_wilks)
 ```
@@ -457,7 +457,7 @@ print(plot_wilks)
 <br/>
 <br/>
 
-```{r figure_s4d, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.55, fig.cap = '<br/>**Supplementary Figure S4d** Box plot comparing the posterior probability of ctDNA detection between putative ctDNA positive and negative training set samples along with the outgroup test samples. The posterior probability was calculated using the LDA trained on the training set samples.'}
+```{r figure_post_pr, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 2.55, fig.cap = '<br/>**Supplementary Figure S4d** Box plot comparing the posterior probability of ctDNA detection between putative ctDNA positive and negative training set samples along with the outgroup test samples. The posterior probability was calculated using the LDA trained on the training set samples.'}
 
 print(plot_post_pr)
 ```

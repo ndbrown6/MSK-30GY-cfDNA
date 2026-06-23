@@ -381,7 +381,7 @@ plot_maf_readcounts_adj <- idx_ %>%
 <br/>
 <br/>
 
-```{r plot_7a, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7a** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM+ve / HPV-ve samples in the ingroup test set.'}
+```{r plot_insert_size_false_neg, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7a** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM+ve / HPV-ve samples in the ingroup test set.'}
 
 print(plot_false_neg)
 ```
@@ -389,7 +389,7 @@ print(plot_false_neg)
 <br/>
 <br/>
 
-```{r plot_7b, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7b** Distribution of insert sizes of read pairs aligned to HPV-16 for samples in the outgroup test set i.e. HPV-18, -33, -35, -58.'}
+```{r plot_insert_size_true_neg, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7b** Distribution of insert sizes of read pairs aligned to HPV-16 for samples in the outgroup test set i.e. HPV-18, -33, -35, -58.'}
 
 print(plot_true_neg)
 ```
@@ -397,7 +397,7 @@ print(plot_true_neg)
 <br/>
 <br/>
 
-```{r plot_7c, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7c** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM-ve / HPV+ve samples, which exhibiting a broad distribution between 75–100 bp.'}
+```{r plot_insert_size_false_pos, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.95, fig.width = 3.75, fig.cap = '<br/>**Supplementary Figure S7c** Distribution of insert sizes of read pairs aligned to HPV-16 for PCM-ve / HPV+ve samples, which exhibiting a broad distribution between 75–100 bp.'}
 
 print(plot_false_pos)
 ```
@@ -405,7 +405,7 @@ print(plot_false_pos)
 <br/>
 <br/>
 
-```{r plot_7d, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7d** Scatter plot showing the correlation between the raw number of cfDNA aligned HPV-16 read pairs and the ctDNA fraction.'}
+```{r plot_ctdna_readcounts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7d** Scatter plot showing the correlation between the raw number of cfDNA aligned HPV-16 read pairs and the ctDNA fraction.'}
 
 print(plot_maf_readcounts)
 ```
@@ -413,7 +413,7 @@ print(plot_maf_readcounts)
 <br/>
 <br/>
 
-```{r plot_7e, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7e** Scatter plot showing the correlation between the number of cfDNA aligned HPV-16 read pairs adjusted for primary tumor HPV copies and the ctDNA fraction.'}
+```{r plot_ctdna_readcounts_adj, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3.5, fig.width = 3.65, fig.cap = '<br/>**Supplementary Figure S7e** Scatter plot showing the correlation between the number of cfDNA aligned HPV-16 read pairs adjusted for primary tumor HPV copies and the ctDNA fraction.'}
 
 print(plot_maf_readcounts_adj)
 ```
