@@ -18,7 +18,7 @@ cd MSK-30GY-cfDNA/R
 ```
 library("rmarkdown")
 rmd_files = dir(path = ".", pattern = ".Rmd")
-for (i in 1:length(file_names)) {
+for (i in 1:length(rmd_files)) {
 	rmarkdown::render(input = rmd_files[i], output_dir = "../res/")
 }
 ```
