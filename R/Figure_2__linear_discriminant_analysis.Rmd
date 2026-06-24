@@ -40,7 +40,7 @@ url_bed_file                 <- "../data/hpv_31_33_35H_16_18.bed"
 url_primers                  <- "../data/HPV_primers.bed"
 
 url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
-url_gsea                     <- "../res/GSEA.txt"
+
 
 target_contigs <- c(
   "HPV-16" = "NC001526.4",
@@ -580,11 +580,6 @@ plot_linear_regression <- idx_metrics_ft %>%
   dplyr::left_join(
     dplyr::select(posterior_probs, sample_id_mskcc, Is_ctDNA = Is_ctDNA__HPV),
     by = "sample_id_mskcc"
-  ) %>%
-  dplyr::left_join(
-    readr::read_tsv(url_gsea, col_names = TRUE, col_types = cols(.default = col_character())) %>%
-      readr::type_convert(),
-    by = "patient_id_mskcc"
   ) %>%
   dplyr::mutate(
     mean_af       = mean_af * 100,

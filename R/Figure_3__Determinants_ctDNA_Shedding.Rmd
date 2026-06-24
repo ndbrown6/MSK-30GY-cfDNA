@@ -1,0 +1,855 @@
+---
+title: "Figure 3 - Determinants of ctDNA shedding in HPV-associated oropharyngeal cancers at baseline"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("magrittr")
+  library("tidyr")
+  library("reshape2")
+  library("ggrepel")
+  library("ggpubr")
+  library("ggsignif")
+  library("viridis")
+  library("ComplexHeatmap")
+  library("grid")
+  library("MASS")
+  library("limma")
+  library("GSVA")
+  library("GSEABase")
+  library("genefilter")
+  library("org.Hs.eg.db")
+  library("clusterProfiler")
+  library("AnnotationDbi")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+url_tpm_by_gene              <- "../data/tpm_by_gene.txt"
+url_gmt                      <- "../data/gmt_by_entrez_id/c2.5.6.8.h.v2023.2.Hs.entrez.gmt"
+url_posterior_probs          <- "../res/Posterior_Probability_ALL.txt"
+url_gsea_out                 <- "../res/GSEA.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+
+log_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^-", scales::scientific_format()(x)), fixed = TRUE))
+}
+
+# --- Helper: classify a variable name into its category ---
+variable_category <- function(variable) {
+  dplyr::case_when(
+    variable %in% c("cfdna_concentration", "hpv_copynumber", "tumor_purity") ~ "Genomics",
+    variable %in% c("tumor_volume", "baseline_hypoxianever_hypoxic")          ~ "Imaging",
+    variable %in% c("t_stageT2", "n_stageN2a", "n_stageN2b", "n_stageN2c",
+                    "smoking_statusyes")                                        ~ "Clinical",
+    grepl("ssGSEA", variable, fixed = TRUE)                                    ~ "Transcriptomics",
+    TRUE                                                                        ~ NA_character_
+  )
+}
+
+# --- Helper: classify a signature name into its MsigDB category ---
+signature_category <- function(x) {
+  dplyr::case_when(
+    grepl("HALLMARK",   x) ~ "Hallmark gene sets",
+    grepl("KEGG_MEDICUS", x) ~ "c2 KEGG Medicus",
+    grepl("REACTOME",   x) ~ "c2 Reactome",
+    grepl("GOBP",       x) ~ "c5 GO Biological Process",
+    grepl("GOCC",       x) ~ "c5 GO Cellular Component",
+    grepl("GOMF",       x) ~ "c5 GO Molecular Function",
+    TRUE                   ~ "Other (c6-c8)"
+  )
+}
+
+# --- Helper: shared box+jitter plot for ssGSEA score by ctDNA status ---
+gsea_boxplot <- function(df, y_col, y_limits = c(NA, 0.75)) {
+  df %>%
+    dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
+    ggplot(aes(x = Is_ctDNA, y = .data[[y_col]])) +
+    geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+    geom_jitter(
+      stat = "identity", width = 0.1, height = 0,
+      shape = 21, size = 2.5, fill = "white", color = "#1b9e77", alpha = 0.75
+    ) +
+    scale_x_discrete(breaks = c("-ve", "+ve"), labels = c("-ve", "+ve")) +
+    scale_y_continuous(limits = y_limits, labels = scientific_10) +
+    xlab("ctDNA") +
+    ylab("GSEA Score") +
+    geom_signif(
+      stat        = "signif",
+      comparisons = list(c("-ve", "+ve")),
+      test        = "wilcox.test",
+      test.args   = list(alternative = "less"),
+      vjust       = -0.2
+    ) +
+    theme_classic() +
+    theme(
+      axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+      axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+      axis.text.x  = element_text(size = 11),
+      axis.text.y  = element_text(size = 12)
+    )
+}
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+mrd_smry <- readr::read_tsv(
+  url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    sample_uuid = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE),
+    sample_name = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE)
+  )
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+nodal_dissection_smry <- readr::read_tsv(
+  url_no_node_dissection, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(patient_id_mskcc = sample)
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+# --- Per-sample mutation AF summary ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+
+# --- Index metrics: baseline HPV-16 samples with clinical joined ---
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    contig          = CHROMOSOME,
+    aligned_reads   = ALIGNED_READS,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::left_join(
+    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
+    by = "contig"
+  ) %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(
+    chromosome == hpv_type_wes_wgs,
+    timepoint_days_since_start_of_RT < 0,
+    hpv_type_wes_wgs == "HPV-16"
+  ) %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+  dplyr::filter(!is.na(hpv_panel_copy_number), !is.na(aligned_reads), !is.na(mean_af))
+
+# --- Posterior probability: pre-treatment E6 read count, dichotomised at median ---
+posterior_probs_pretreat <- readr::read_tsv(
+  url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(timepoint_days_since_start_of_RT < 0) %>%
+  dplyr::select(patient_id_mskcc, read_count = `E6_7124:7601_READ_COUNT`) %>%
+  dplyr::group_by(patient_id_mskcc) %>%
+  dplyr::summarize(read_count = mean(read_count), .groups = "drop") %>%
+  dplyr::mutate(
+    Is_ctDNA = dplyr::case_when(
+      read_count >= quantile(read_count, 0.5) ~ "+ve",
+      read_count <  quantile(read_count, 0.5) ~ "-ve",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  tidyr::drop_na()
+
+# --- TPM expression matrix aligned to posterior_probs_pretreat patients ---
+tpm_by_gene <- readr::read_tsv(
+  url_tpm_by_gene, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+posterior_probs_pretreat <- posterior_probs_pretreat %>%
+  dplyr::filter(patient_id_mskcc %in% colnames(tpm_by_gene))
+
+tpm_by_gene <- tpm_by_gene %>%
+  dplyr::select(all_of(c("Hugo_Symbol", posterior_probs_pretreat$patient_id_mskcc))) %>%
+  dplyr::arrange(Hugo_Symbol) %>%
+  dplyr::mutate(
+    Entrez_ID = as.character(mapIds(org.Hs.eg.db, Hugo_Symbol, "ENTREZID", "SYMBOL"))
+  ) %>%
+  dplyr::filter(!is.na(Entrez_ID))
+
+expr_set           <- as.matrix(dplyr::select(tpm_by_gene, posterior_probs_pretreat$patient_id_mskcc))
+rownames(expr_set) <- tpm_by_gene$Entrez_ID
+
+clin_data <- posterior_probs_pretreat %>%
+  dplyr::mutate(SAMPLE_ID = patient_id_mskcc) %>%
+  as.data.frame() %>%
+  tibble::column_to_rownames("SAMPLE_ID") %>%
+  {new("AnnotatedDataFrame", data = .)}
+
+expr_eset <- ExpressionSet(
+  assayData = expr_set,
+  phenoData = clin_data,
+  annotation = "org.Hs.eg.db"
+)
+
+ft_eset <- nsFilter(
+  expr_eset,
+  require.entrez   = TRUE,
+  remove.dupEntrez = TRUE,
+  var.filter       = TRUE
+)
+```
+
+```{r compute_gsva, eval = TRUE, include = FALSE}
+
+# --- GSVA ssGSEA (eBayes path) → writes GSEA.txt ---
+BroadGeneSet  <- getGmt(con = url_gmt)
+geneSets      <- lapply(unlist(BroadGeneSet), function(x) x@geneIds)
+names(geneSets) <- lapply(unlist(BroadGeneSet), function(x) x@setName)
+
+params <- gsvaParam(
+  exprData = exprs(ft_eset$eset),
+  geneSets = geneSets,
+  minSize  = 10,
+  maxSize  = 500,
+  maxDiff  = TRUE,
+  verbose  = TRUE
+)
+BroadGeneSet_SSGSEA <- gsva(params)
+
+response <- ft_eset$eset$Is_ctDNA
+status   <- dplyr::if_else(response == "+ve", 1L, dplyr::if_else(response == "-ve", 0L, NA_integer_))
+design   <- model.matrix(~factor(status))
+colnames(design) <- c("intercept", "status")
+
+fit   <- lmFit(object = BroadGeneSet_SSGSEA[, !is.na(status), drop = FALSE], design = design)
+fiteb <- eBayes(fit, trend = FALSE)
+
+setof_allsignatures_gsva <- topTable(fiteb, coef = "status", number = Inf) %>%
+  dplyr::mutate(signature_name = rownames(.)) %>%
+  dplyr::as_tibble() %>%
+  dplyr::left_join(
+    dplyr::tibble(
+      signature_name = names(BroadGeneSet),
+      n              = vapply(BroadGeneSet, function(x) length(x@geneIds), integer(1))
+    ),
+    by = "signature_name"
+  ) %>%
+  dplyr::mutate(
+    category = signature_category(signature_name),
+    logFC    = logFC / 20,
+    P.Value  = dplyr::if_else(P.Value < 0.001, 0.001, P.Value)
+  )
+
+# Write GSEA scores for all signatures with P < 1
+BroadGeneSet_SSGSEA %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("signature_name") %>%
+  dplyr::as_tibble() %>%
+  dplyr::filter(signature_name %in% dplyr::filter(setof_allsignatures_gsva, P.Value < 1)$signature_name) %>%
+  reshape2::melt() %>%
+  reshape2::dcast(variable ~ signature_name, value.var = "value") %>%
+  dplyr::as_tibble() %>%
+  dplyr::rename(patient_id_mskcc = variable) %>%
+  readr::write_tsv(file = url_gsea_out, col_names = TRUE, append = FALSE)
+```
+
+```{r compute_gsea, eval = TRUE, include = FALSE}
+
+# --- fgsea (clusterProfiler path) for volcano plot ---
+logFC <- log2(
+  apply(exprs(ft_eset$eset)[, status == 1, drop = FALSE], 1, mean) /
+  apply(exprs(ft_eset$eset)[, status == 0, drop = FALSE], 1, mean)
+)
+setof_allgenes <- sort(logFC, decreasing = TRUE)
+BroadGeneSet_gmt <- read.gmt(url_gmt)
+
+setof_allsignatures <- GSEA(
+  geneList       = setof_allgenes,
+  minGSSize      = 10,
+  maxGSSize      = 500,
+  eps            = 1e-10,
+  pvalueCutoff   = 1,
+  pAdjustMethod  = "fdr",
+  gson           = NULL,
+  TERM2GENE      = BroadGeneSet_gmt,
+  verbose        = TRUE,
+  seed           = FALSE,
+  by             = "fgsea"
+) %>%
+  .@result %>%
+  dplyr::as_tibble() %>%
+  dplyr::select(
+    signature_name = ID,
+    n              = setSize,
+    NES, pvalue, p.adjust, qvalue
+  ) %>%
+  dplyr::mutate(category = signature_category(signature_name))
+```
+
+```{r build_plots_F3abcde, eval = TRUE, include = FALSE}
+
+# --- Shared data for plots F3a-b and F3e (scatter/box) ---
+data_plots <- idx_metrics_ft %>%
+  dplyr::left_join(
+    readr::read_tsv(url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+      readr::type_convert() %>%
+      dplyr::select(sample_id_mskcc, Is_ctDNA),
+    by = "sample_id_mskcc"
+  ) %>%
+  dplyr::left_join(
+    readr::read_tsv(url_gsea_out, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+      readr::type_convert(),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::mutate(
+    mean_af       = mean_af * 100,
+    aligned_reads = log10(aligned_reads)
+  ) %>%
+  dplyr::select(
+    Is_ctDNA,
+    aligned_reads,
+    mean_af,
+    cfdna_concentration  = concentration_ng_uL,
+    hpv_copynumber       = hpv_panel_copy_number,
+    tumor_purity         = purity_wes,
+    tumor_volume         = plan_volume,
+    t_stage,
+    n_stage,
+    smoking_status       = smoking_category_yes_never,
+    hypoxia              = simplified_hypoxia_group,
+    ssGSEA_apoptosis     = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+    ssGSEA_necrosis_pos  = REACTOME_REGULATED_NECROSIS,
+    ssGSEA_necrosis_neg  = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+    ssGSEA_mitosis       = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS
+  )
+
+# --- F3a: tumor volume vs cfDNA aligned read pairs ---
+plot_chpv_vol <- data_plots %>%
+  ggplot(aes(x = tumor_volume, y = aligned_reads)) +
+  geom_smooth(
+    stat = "smooth", method = "lm", formula = y ~ x,
+    se = FALSE, color = "goldenrod3", linewidth = 1.5
+  ) +
+  geom_point(
+    stat = "identity", shape = 21,
+    color = "#1b9e77", fill = "white", alpha = 0.85, size = 2.5
+  ) +
+  scale_x_log10() +
+  scale_y_continuous(
+    limits = c(2, 7),
+    breaks = c(2, 3, 4, 5, 6, 7),
+    labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))
+  ) +
+  xlab(expression("Primary Tumor Volume (" ~ cm^3 ~ ")")) +
+  ylab("cfDNA Aligned HPV Read Pairs") +
+  ggpubr::stat_cor(method = "spearman", label.x = log10(0.95), label.y = 7, size = 4) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  )
+
+# --- F3b: baseline hypoxia vs cfDNA aligned read pairs ---
+plot_chpv_hypoxia <- data_plots %>%
+  dplyr::mutate(
+    hypoxia = dplyr::case_when(
+      hypoxia %in% c("converted", "persistent") ~ "hypoxic",
+      TRUE ~ hypoxia
+    ),
+    hypoxia = factor(hypoxia, levels = c("never_hypoxic", "hypoxic"), ordered = TRUE)
+  ) %>%
+  ggplot(aes(x = hypoxia, y = aligned_reads)) +
+  geom_boxplot(stat = "boxplot", outlier.shape = NA) +
+  geom_jitter(
+    stat = "identity", width = 0.1, height = 0,
+    shape = 21, size = 2.5, fill = "white", color = "#1b9e77", alpha = 0.75
+  ) +
+  scale_x_discrete(
+    breaks = c("never_hypoxic", "hypoxic"),
+    labels = c("Never\nhypoxic", "Hypoxic")
+  ) +
+  scale_y_continuous(
+    limits = c(2, 8),
+    breaks = c(2, 3, 4, 5, 6, 7),
+    labels = scientific_10(10^c(2, 3, 4, 5, 6, 7))
+  ) +
+  xlab("Baseline hypoxia") +
+  ylab("cfDNA Aligned HPV Read Pairs") +
+  geom_signif(
+    stat        = "signif",
+    comparisons = list(c("never_hypoxic", "hypoxic")),
+    test        = "wilcox.test",
+    test.args   = list(alternative = "two.sided"),
+    y_position  = log10(1e7),
+    vjust       = -0.5
+  ) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 10),
+    axis.text.y  = element_text(size = 12)
+  )
+
+# --- F3c: GSEA volcano plot ---
+plot_volcano <- setof_allsignatures %>%
+  dplyr::filter(grepl("Hallmark|Reactome|KEGG|GO Biological", category, perl = TRUE)) %>%
+  dplyr::mutate(
+    is_apoptosis = grepl("APOP|NECRO|DEATH", signature_name, perl = TRUE, ignore.case = TRUE),
+    is_mitosis   = grepl("MITOS|MITOT|G1|G2|CELL_CYCLE", signature_name, perl = TRUE, ignore.case = TRUE),
+    is_pathway   = dplyr::case_when(
+      is_apoptosis ~ "Apoptosis",
+      is_mitosis   ~ "Mitosis",
+      TRUE         ~ "Other"
+    ),
+    is_pathway = factor(is_pathway, levels = c("Apoptosis", "Mitosis", "Other"), ordered = TRUE)
+  ) %>%
+  dplyr::arrange(desc(is_apoptosis), desc(is_mitosis)) %>%
+  ggplot(aes(
+    x = NES, y = 1 / p.adjust,
+    fill = is_pathway, color = is_pathway, alpha = is_pathway, shape = category
+  )) +
+  geom_point(stat = "identity", size = 2) +
+  geom_hline(yintercept = 1 / 0.1,      color = "goldenrod3", linetype = 2, linewidth = 0.55) +
+  geom_vline(xintercept = c(-1.5, 1.5), color = "goldenrod3", linetype = 2, linewidth = 0.55) +
+  scale_fill_manual(values  = c("Apoptosis" = "#fc9272", "Mitosis" = "#1d91c0", "Other" = "#ffffd9")) +
+  scale_color_manual(values = c("Apoptosis" = "#000000", "Mitosis" = "#000000", "Other" = "#c6c1bb"),
+                     guide  = "none") +
+  scale_alpha_manual(values = c("Apoptosis" = 1, "Mitosis" = 1, "Other" = 0.55),
+                     guide  = "none") +
+  scale_shape_manual(values = c(
+    "Hallmark gene sets"       = 21,
+    "c2 KEGG Medicus"          = 22,
+    "c2 Reactome"              = 23,
+    "c5 GO Biological Process" = 24,
+    "c5 GO Cellular Component" = 24,
+    "c5 GO Molecular Function" = 24,
+    "Other (c6-c8)"            = 24
+  )) +
+  scale_y_log10(limits = c(1, NA), labels = log_10) +
+  xlab("NES") +
+  ylab("FDR Adjusted P-value") +
+  geom_text_repel(
+    data = dplyr::filter(
+      setof_allsignatures %>%
+        dplyr::mutate(
+          is_pathway = dplyr::case_when(
+            grepl("APOP|NECRO|DEATH|MITOS|MITOT|G1|G2|CELL_CYCLE", signature_name, perl = TRUE) ~ "Yes",
+            TRUE ~ "No"
+          )
+        ) %>%
+        dplyr::filter(
+          is_pathway == "Yes",
+          grepl("Hallmark|Reactome", category, perl = TRUE)
+        ),
+      (NES > 1.5 | NES < -1.5) & (1 / p.adjust) > (1 / 0.1)
+    ),
+    mapping     = aes(x = NES, y = 1 / p.adjust, label = signature_name),
+    size        = 2.5,
+    segment.size = 0.35,
+    force       = 1,
+    show.legend = FALSE,
+    inherit.aes = FALSE
+  ) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 14),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 14),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(
+    fill  = guide_legend(title = "Pathway\nRelatedness", override.aes = list(size = 3, shape = 21), order = 1),
+    shape = guide_legend(title = "MsigDB\nCollection",  override.aes = list(size = 3),             order = 2)
+  )
+
+# --- F3d: ssGSEA signature heatmap ---
+# Posterior probability summary: pre-treatment Is_ctDNA, mean_af, E6 insert size
+pp_summary <- readr::read_tsv(
+  url_posterior_probs, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(timepoint_days_since_start_of_RT < 0) %>%
+  dplyr::group_by(patient_id_mskcc) %>%
+  dplyr::summarize(
+    Is_ctDNA       = dplyr::case_when(any(Is_ctDNA == "+ve") ~ "+ve", all(Is_ctDNA == "-ve") ~ "-ve"),
+    mean_af        = mean(mean_af),
+    e6_insert_size = mean(`E6_7124:7601_INSERT_SIZE`),
+    .groups        = "drop"
+  )
+
+# Signatures of interest: apoptosis/necrosis/death/mitosis/cell-cycle from Hallmark or Reactome
+sig_filter <- setof_allsignatures %>%
+  dplyr::filter(
+    pvalue < 0.1,
+    grepl("APOP|NECRO|DEATH|MITOS|MITOT|G1|G2|CELL_CYCLE", signature_name, perl = TRUE),
+    grepl("HALLMARK|REACTOME|KEGG", signature_name, perl = TRUE)
+  ) %>%
+  .[["signature_name"]]
+
+exprs_ <- BroadGeneSet_SSGSEA %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("signature_name") %>%
+  dplyr::as_tibble() %>%
+  dplyr::filter(signature_name %in% sig_filter) %>%
+  reshape2::melt() %>%
+  reshape2::dcast(variable ~ signature_name, value.var = "value") %>%
+  dplyr::as_tibble() %>%
+  dplyr::rename(patient_id_mskcc = variable) %>%
+  dplyr::left_join(pp_summary, by = "patient_id_mskcc") %>%
+  dplyr::mutate(dplyr::across(where(is.numeric), ~ as.numeric(scale(.x)))) %>%
+  dplyr::arrange(Is_ctDNA, mean_af, e6_insert_size)
+
+# Hierarchical clustering within each ctDNA group
+cluster_order <- function(df) {
+  df %>%
+    dplyr::select(-patient_id_mskcc, -Is_ctDNA, -mean_af, -e6_insert_size) %>%
+    dist() %>%
+    hclust(method = "ward.D2") %>%
+    .[["order"]]
+}
+
+ord_neg <- cluster_order(dplyr::filter(exprs_, Is_ctDNA == "-ve"))
+ord_pos <- cluster_order(dplyr::filter(exprs_, Is_ctDNA == "+ve"))
+
+sample_order <- dplyr::tibble(
+  patient_id_mskcc = c(
+    dplyr::filter(exprs_, Is_ctDNA == "-ve")$patient_id_mskcc[ord_neg],
+    dplyr::filter(exprs_, Is_ctDNA == "+ve")$patient_id_mskcc[ord_pos]
+  )
+) %>%
+  dplyr::mutate(index = seq_len(n()))
+
+exprs_ <- exprs_ %>%
+  dplyr::left_join(sample_order, by = "patient_id_mskcc") %>%
+  dplyr::arrange(index) %>%
+  dplyr::select(-index)
+
+color_palette    <- c("#f0f9e8", "#bae4bc", "#7bccc4", "#43a2ca", "#0868ac", "#045a8d")
+n_ctdna          <- length(unique(exprs_$Is_ctDNA))
+n_af             <- length(unique(exprs_$mean_af))
+n_e6             <- length(unique(exprs_$e6_insert_size))
+
+pal_ctdna <- colorRampPalette(color_palette)(n_ctdna);  names(pal_ctdna) <- unique(exprs_$Is_ctDNA)
+pal_af    <- colorRampPalette(color_palette)(n_af);     names(pal_af)    <- sort(unique(exprs_$mean_af))
+pal_e6    <- colorRampPalette(color_palette)(n_e6);     names(pal_e6)    <- sort(unique(exprs_$e6_insert_size))
+
+ha <- HeatmapAnnotation(
+  df           = as.data.frame(dplyr::select(exprs_, Is_ctDNA, mean_af, e6_insert_size)),
+  col          = list(Is_ctDNA = pal_ctdna, mean_af = pal_af, e6_insert_size = pal_e6),
+  show_legend  = FALSE,
+  simple_anno_size = unit(3, "mm"),
+  annotation_name_gp = gpar(fontsize = 9)
+)
+
+plot_heatmap <- Heatmap(
+  matrix         = t(dplyr::select(exprs_, -patient_id_mskcc, -Is_ctDNA, -mean_af, -e6_insert_size)),
+  col            = viridis(n = 15, direction = -1),
+  name           = " ",
+  na_col         = "#f0f0f0",
+  rect_gp        = gpar(col = "white", lwd = 0.2),
+  border         = NA,
+  cluster_rows   = TRUE,
+  show_row_names = TRUE,
+  row_names_side = "left",
+  row_names_max_width = unit(12, "cm"),
+  row_names_gp   = gpar(fontsize = 8),
+  show_row_dend  = FALSE,
+  cluster_columns = FALSE,
+  show_column_names = FALSE,
+  top_annotation = ha,
+  use_raster     = FALSE,
+  show_heatmap_legend = TRUE,
+  heatmap_legend_param = list(
+    legend_height = unit(0.5, "cm"),
+    legend_width  = unit(1.5, "cm")
+  )
+)
+
+# --- F3e: apoptosis and mitosis ssGSEA box plots ---
+plot_apoptosis <- gsea_boxplot(data_plots, "ssGSEA_apoptosis")
+plot_mitosis   <- gsea_boxplot(data_plots, "ssGSEA_mitosis")
+```
+
+```{r build_plots_F3hi, eval = TRUE, include = FALSE}
+
+# --- Data for multivariate regression (F3h forest, F3i AIC) ---
+gsea_scores <- readr::read_tsv(
+  url_gsea_out, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+data_reg <- idx_metrics_ft %>%
+  dplyr::left_join(gsea_scores, by = "patient_id_mskcc") %>%
+  dplyr::mutate(
+    mean_af       = mean_af * 100,
+    aligned_reads = log10(aligned_reads)
+  ) %>%
+  dplyr::select(
+    patient_id_mskcc,
+    aligned_reads,
+    mean_af,
+    cfdna_concentration  = concentration_ng_uL,
+    hpv_copynumber       = hpv_panel_copy_number,
+    tumor_purity         = purity_wes,
+    tumor_volume         = plan_volume,
+    t_stage,
+    n_stage,
+    smoking_status       = smoking_category_yes_never,
+    hypoxia              = simplified_hypoxia_group,
+    ssGSEA_apoptosis     = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+    ssGSEA_necrosis_pos  = REACTOME_REGULATED_NECROSIS,
+    ssGSEA_necrosis_neg  = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+    ssGSEA_mitosis       = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS
+  ) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    mean_af              = scale(mean_af),
+    cfdna_concentration  = scale(cfdna_concentration),
+    hpv_copynumber       = scale(hpv_copynumber),
+    tumor_volume         = scale(tumor_volume),
+    ssGSEA_apoptosis     = scale(ssGSEA_apoptosis),
+    ssGSEA_necrosis_pos  = scale(ssGSEA_necrosis_pos),
+    ssGSEA_necrosis_neg  = scale(ssGSEA_necrosis_neg),
+    ssGSEA_mitosis       = scale(ssGSEA_mitosis),
+    baseline_hypoxia     = dplyr::case_when(
+      hypoxia %in% c("converted", "persistent") ~ "hypoxic",
+      TRUE ~ hypoxia
+    )
+  ) %>%
+  tidyr::drop_na() %>%
+  dplyr::filter(!duplicated(patient_id_mskcc)) %>%
+  dplyr::select(-patient_id_mskcc) %>%
+  as.data.frame()
+
+fit_   <- lm(formula = aligned_reads ~ ., data = dplyr::select(data_reg, -mean_af, -hypoxia))
+res_   <- summary(fit_)
+aic_   <- MASS::stepAIC(
+  object    = lm(formula = aligned_reads ~ ., data = dplyr::select(data_reg, -mean_af, -hypoxia)),
+  direction = "backward"
+)
+
+# --- F3h: forest plot of multivariate regression coefficients ---
+plot_forest <- res_ %>%
+  .[["coefficients"]] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variable") %>%
+  dplyr::as_tibble() %>%
+  dplyr::filter(variable != "(Intercept)") %>%
+  dplyr::mutate(
+    is_significant = dplyr::if_else(`Pr(>|t|)` < 0.1, "Yes", "No"),
+    variable_cat   = variable_category(variable),
+    variable_cat   = factor(
+      variable_cat,
+      levels  = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")),
+      ordered = TRUE
+    )
+  ) %>%
+  dplyr::arrange(variable_cat, Estimate) %>%
+  dplyr::mutate(variable = factor(variable, levels = variable, ordered = TRUE)) %>%
+  ggplot(aes(
+    x     = variable,
+    ymin  = 0, ymax = Estimate, y = Estimate,
+    fill  = is_significant,
+    size  = -log10(`Pr(>|t|)`),
+    shape = variable_cat
+  )) +
+  geom_linerange(stat = "identity", linewidth = 0.5) +
+  geom_hline(yintercept = 0, linewidth = 1) +
+  geom_point(stat = "identity") +
+  xlab("") +
+  ylab("") +
+  scale_fill_manual(values = c("#bdbdbd", "#e41a1c")) +
+  scale_shape_manual(values = c(
+    "Genomics" = 21, "Transcriptomics" = 22, "Imaging" = 23, "Clinical" = 24
+  )) +
+  coord_flip() +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(
+    fill  = "none",
+    shape = guide_legend(title = "Variable Category", order = 1, override.aes = list(size = 3)),
+    size  = guide_legend(title = expression(-Log[10] ~ "p-value"))
+  )
+
+# --- F3i: stepwise AIC plot (hardcoded results from stepAIC run) ---
+variables_filtered <- c(
+  "All", "n_stage", "ssGSEA_necrosis_pos", "baseline_hypoxia",
+  "cfdna_concentration", "smoking_status", "tumor_purity", "t_stage",
+  "ssGSEA_mitosis", "hpv_copynumber", "ssGSEA_necrosis_neg",
+  "ssGSEA_apoptosis", "tumor_volume"
+)
+extracted_aic <- c(
+  -2.0400, -7.0835, -9.0741, -11.0612, -13.0176, -14.7374, -15.8973,
+  -16.3118, -16.4694, -13.3446, -11.5456, -10.7348, -4.6713
+)
+
+plot_aic <- dplyr::tibble(
+  variables = variables_filtered,
+  aic       = extracted_aic
+) %>%
+  dplyr::mutate(index = seq_len(n())) %>%
+  ggplot(aes(x = index, y = aic)) +
+  geom_line(stat = "identity", linewidth = 0.95) +
+  geom_point(stat = "identity", color = "black", fill = "white", shape = 21, size = 3) +
+  scale_x_continuous(
+    breaks = seq_along(variables_filtered),
+    labels = paste0("- ", variables_filtered, " ", rev(seq_along(variables_filtered)))
+  ) +
+  xlab("") +
+  ylab("AIC") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y  = element_text(size = 12)
+  )
+```
+
+<br/>
+<br/>
+
+```{r plot_chpv_vol, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 3.5, fig.cap = '<br/>**Figure 3a** Scatter plot of cfDNA aligned HPV-16 read pairs with patient-matched primary MRI tumor volume at baseline.'}
+
+print(plot_chpv_vol)
+```
+
+<br/>
+<br/>
+
+```{r plot_chpv_hypoxia, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 3, fig.cap = '<br/>**Figure 3b** Box plot comparing the circulating HPV-16 read pairs between hypoxic and non-hypoxic tumors at baseline as assessed by 18F-FMISO PET-CT.'}
+
+print(plot_chpv_hypoxia)
+```
+
+<br/>
+<br/>
+
+```{r plot_volcano, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 7, fig.cap = '<br/>**Figure 3c** Volcano plot of NES versus FDR adjusted p-value for Hallmark, KEGG, Reactome, and Gene Ontology pathways.'}
+
+print(plot_volcano)
+```
+
+<br/>
+<br/>
+
+```{r plot_heatmap, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 10, fig.cap = '<br/>**Figure 3d** Heatmap of GSEA scores for select apoptosis, necrosis, and mitosis transcriptomic signatures (absolute Log2 Fold-Change≥2.5; p≤0.1) in pre-treatment primary tumors.'}
+
+draw(plot_heatmap)
+```
+
+<br/>
+<br/>
+
+```{r plot_apoptosis, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 3, fig.cap = '<br/>**Figure 3e** Box plots comparing GSEA scores between HPV ctDNA positive and negative pre-treatment primary tumors for caspase activation via apoptotic signaling.'}
+
+print(plot_apoptosis)
+```
+
+<br/>
+<br/>
+
+```{r plot_mitosis, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 3, fig.cap = '<br/>**Figure 3f** Box plots comparing GSEA scores between HPV ctDNA positive and negative pre-treatment primary tumors for G1/S DNA damage checkpoints.'}
+
+print(plot_mitosis)
+```
+
+<br/>
+<br/>
+
+```{r plot_forest, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4.5, fig.width = 7, fig.cap = '<br/>**Figure 3h** Forest plot showing the standardized coefficients of select transcriptomic signatures, clinical parameters, imaging, and genomic covariates in the multivariate regression predicting ctDNA shedding at baseline.'}
+
+print(plot_forest)
+```
+
+<br/>
+<br/>
+
+```{r plot_aic, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 3i** Stepwise regression model with backward elimination using the AIC identified tumor volume, apoptosis, necrosis, and primary tumor viral load as major contributors to baseline cHPV DNA levels.'}
+
+print(plot_aic)
+```

@@ -46,22 +46,6 @@ log_10 <- function(x) {
 str_split_n <- function(x, split, n) {
   return(invisible(unlist(strsplit(x, split = split))[n]))
 }
-
-fGSEA <- function(fold_change, gmt_file, pval = 1) {
-  set.seed(54321)
-  msig_db <- fgsea::gmtPathways(gmt_file)
-  gsea <- fgsea::fgsea(
-    pathways = msig_db,
-    stats    = fold_change,
-    minSize  = 5,
-    maxSize  = 500,
-    nperm    = 10000
-  ) %>%
-    dplyr::as_tibble() %>%
-    dplyr::filter(padj < !!pval) %>%
-    dplyr::arrange(desc(NES))
-  return(invisible(gsea))
-}
 ```
 
 ```{r load_tcga_data, eval = TRUE, include = FALSE}
