@@ -1,0 +1,449 @@
+---
+title: "Supplementary Figure S8 - Determinants of ctDNA shedding in HPV-associated oropharyngeal cancers at baseline"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("magrittr")
+  library("tidyr")
+  library("MASS")
+  library("ggpubr")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_mrd_summary              <- "../data/TM-2021-MSK-002_MRD_Results_Summary_20220825.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_no_node_dissection       <- "../data/patients_0_nodal_dissection.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+url_gsea                     <- "../res/GSEA.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+
+# --- Helper: classify a variable name into its category ---
+variable_category <- function(variable) {
+  dplyr::case_when(
+    variable %in% c("cfdna_concentration", "hpv_copynumber", "tumor_purity") ~ "Genomics",
+    variable %in% c("tumor_volume", "baseline_hypoxianever_hypoxic")          ~ "Imaging",
+    variable %in% c("t_stageT2", "n_stageN2a", "n_stageN2b", "n_stageN2c",
+                    "smoking_statusyes")                                       ~ "Clinical",
+    grepl("ssGSEA", variable, fixed = TRUE)                                   ~ "Transcriptomics",
+    TRUE                                                                       ~ NA_character_
+  )
+}
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+mrd_smry <- readr::read_tsv(
+  url_mrd_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    sample_uuid = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE),
+    sample_name = gsub("EP-D1-D1", "", Sample_ID_Archer, fixed = TRUE)
+  )
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+nodal_dissection_smry <- readr::read_tsv(
+  url_no_node_dissection, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::rename(patient_id_mskcc = sample)
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+# --- Per-sample mutation AF summary ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+
+# --- Index metrics: baseline HPV-16, pre-treatment only, with clinical joined ---
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    contig          = CHROMOSOME,
+    aligned_reads   = ALIGNED_READS,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::left_join(
+    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
+    by = "contig"
+  ) %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::filter(
+    chromosome == hpv_type_wes_wgs,
+    timepoint_days_since_start_of_RT < 0,
+    hpv_type_wes_wgs == "HPV-16"
+  ) %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::left_join(clinical, by = "patient_id_mskcc") %>%
+  dplyr::filter(
+    !is.na(hpv_panel_copy_number),
+    !is.na(aligned_reads),
+    !is.na(mean_af)
+  )
+```
+
+```{r build_plots_S8ab, eval = TRUE, include = FALSE}
+
+# --- Multivariate regression: aligned read pairs ~ HPV copy number + mean AF ---
+res_ <- summary(lm(
+  formula = aligned_reads ~ hpv_panel_copy_number + mean_af,
+  data    = idx_metrics_ft %>%
+    dplyr::mutate(
+      aligned_reads         = log10(aligned_reads),
+      hpv_panel_copy_number = log10(hpv_panel_copy_number)
+    )
+))
+
+# --- Stepwise AIC backward elimination ---
+aic_ <- MASS::stepAIC(
+  object = lm(
+    formula = aligned_reads ~ .,
+    data    = idx_metrics_ft %>%
+      dplyr::mutate(
+        aligned_reads         = log10(aligned_reads + 1e-3),
+        hpv_panel_copy_number = log10(hpv_panel_copy_number)
+      ) %>%
+      dplyr::select(aligned_reads, hpv_panel_copy_number, mean_af)
+  ),
+  direction = "backward"
+)
+
+# --- S8a: forest plot of multivariate regression coefficients ---
+plot_coeff <- res_ %>%
+  .[["coefficients"]] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variable") %>%
+  dplyr::as_tibble() %>%
+  dplyr::mutate(
+    variable = dplyr::case_when(
+      variable == "mean_af"              ~ "Mean AF (%)",
+      variable == "hpv_panel_copy_number" ~ "HPV copy number",
+      variable == "(Intercept)"          ~ "Y intercept"
+    ),
+    is_significant = dplyr::if_else(`Pr(>|t|)` < 0.1, "Yes", "No")
+  ) %>%
+  dplyr::arrange(Estimate) %>%
+  dplyr::mutate(variable = factor(variable, levels = variable, ordered = TRUE)) %>%
+  ggplot(aes(
+    x    = variable,
+    ymin = 0, ymax = Estimate, y = Estimate,
+    fill = is_significant,
+    size = -log10(`Pr(>|t|)`)
+  )) +
+  geom_linerange(stat = "identity", linewidth = 0.5) +
+  geom_hline(yintercept = 0, linewidth = 1) +
+  geom_point(stat = "identity", shape = 21) +
+  xlab("") +
+  ylab("") +
+  scale_fill_manual(values = c("No" = "#bdbdbd", "Yes" = "#e41a1c")) +
+  scale_x_discrete() +
+  scale_y_continuous() +
+  coord_flip() +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(
+    fill = "none",
+    size = guide_legend(title = expression(-Log[10] ~ "p-value"))
+  )
+
+# --- S8b: AIC step plot ---
+plot_aic <- dplyr::tibble(
+  variables = c("None", "- HPV copy\nnumber", "Mean\nAF (%)"),
+  aic       = c(-15.6000, -6.9827, -0.6432),
+  index     = 1:3
+) %>%
+  ggplot(aes(x = index, y = aic)) +
+  geom_line(stat = "identity", linewidth = 0.95) +
+  geom_point(stat = "identity", color = "black", fill = "white", shape = 21, size = 3) +
+  scale_x_continuous(
+    breaks = 1:3,
+    labels = c("None", "HPV copy\nnumber", "Mean\nAF (%)")
+  ) +
+  scale_y_continuous(limits = c(-20, NA)) +
+  xlab("") +
+  ylab("AIC") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 9, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y  = element_text(size = 12)
+  )
+```
+
+<br/>
+<br/>
+
+```{r plot_coeff, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2, fig.width = 5.5, fig.cap = '<br/>**Supplementary Figure S8a** Forest plot showing the standardized coefficients in a multivariate regression predicting cfDNA aligned HPV-16 read pairs from the combination of ctDNA fraction and patient matched primary tumor HPV copies at baseline.'}
+
+print(plot_coeff)
+```
+
+<br/>
+<br/>
+
+```{r plot_aic, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 2.35, fig.width = 1.85, fig.cap = '<br/>**Supplementary Figure S8b** Stepwise regression model with backward elimination using AIC shows that the number of cfDNA aligned HPV-16 read pairs in plasma is a function of the combined ctDNA fraction and primary tumour HPV copies.'}
+
+print(plot_aic)
+```
+
+```{r build_plots_S8cd, eval = TRUE, include = FALSE}
+
+# --- Multivariate regression data with GSEA scores and clinical covariates ---
+data_ <- idx_metrics_ft %>%
+  dplyr::left_join(
+    readr::read_tsv(url_gsea, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+      readr::type_convert(),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::mutate(mean_af = (mean_af * 100) + 1e-3) %>%
+  dplyr::select(
+    patient_id_mskcc,
+    aligned_reads,
+    mean_af,
+    cfdna_concentration   = concentration_ng_uL,
+    hpv_copynumber        = hpv_panel_copy_number,
+    tumor_purity          = purity_wes,
+    tumor_volume          = plan_volume,
+    t_stage,
+    n_stage,
+    smoking_status        = smoking_category_yes_never,
+    hypoxia               = simplified_hypoxia_group,
+    ssGSEA_apoptosis      = REACTOME_CASPASE_ACTIVATION_VIA_EXTRINSIC_APOPTOTIC_SIGNALLING_PATHWAY,
+    ssGSEA_necrosis_pos   = REACTOME_REGULATED_NECROSIS,
+    ssGSEA_necrosis_neg   = GOBP_NEGATIVE_REGULATION_OF_TUMOR_NECROSIS_FACTOR_MEDIATED_SIGNALING_PATHWAY,
+    ssGSEA_mitosis        = REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS
+  ) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    mean_af             = log10(mean_af),
+    aligned_reads       = log10(aligned_reads),
+    cfdna_concentration = scale(cfdna_concentration),
+    hpv_copynumber      = scale(hpv_copynumber),
+    tumor_volume        = scale(tumor_volume),
+    ssGSEA_apoptosis    = scale(ssGSEA_apoptosis),
+    ssGSEA_necrosis_pos = scale(ssGSEA_necrosis_pos),
+    ssGSEA_necrosis_neg = scale(ssGSEA_necrosis_neg),
+    ssGSEA_mitosis      = scale(ssGSEA_mitosis),
+    baseline_hypoxia    = dplyr::case_when(
+      hypoxia %in% c("converted", "persistent") ~ "hypoxic",
+      TRUE ~ hypoxia
+    )
+  ) %>%
+  tidyr::drop_na() %>%
+  dplyr::filter(!duplicated(patient_id_mskcc)) %>%
+  dplyr::select(-patient_id_mskcc) %>%
+  as.data.frame()
+
+smry_reads <- summary(lm(
+  formula = aligned_reads ~ .,
+  data    = dplyr::select(data_, -mean_af, -hypoxia)
+))
+
+smry_af <- summary(lm(
+  formula = mean_af ~ .,
+  data    = dplyr::select(data_, -aligned_reads, -hypoxia, -hpv_copynumber)
+))
+
+# Shared variable ordering for forest plot
+var_levels <- c(
+  "tumor_purity", "hpv_copynumber", "cfdna_concentration",
+  "ssGSEA_apoptosis", "ssGSEA_mitosis", "ssGSEA_necrosis_pos",
+  "ssGSEA_necrosis_neg", "tumor_volume", "baseline_hypoxianever_hypoxic",
+  "n_stageN2c", "n_stageN2b", "n_stageN2a", "smoking_statusyes", "t_stageT2"
+)
+
+# --- S8c: forest plot of mean AF multivariate regression ---
+plot_forest <- smry_af %>%
+  .[["coefficients"]] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variable") %>%
+  dplyr::as_tibble() %>%
+  dplyr::filter(variable != "(Intercept)") %>%
+  dplyr::mutate(
+    is_significant = dplyr::if_else(`Pr(>|t|)` < 0.1, "Yes", "No"),
+    variable_cat   = variable_category(variable),
+    variable_cat   = factor(
+      variable_cat,
+      levels  = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")),
+      ordered = TRUE
+    ),
+    variable = factor(variable, levels = var_levels, ordered = TRUE)
+  ) %>%
+  dplyr::arrange(desc(variable), Estimate) %>%
+  dplyr::mutate(variable = factor(variable, levels = variable, ordered = TRUE)) %>%
+  ggplot(aes(
+    x    = variable,
+    ymin = 0, ymax = Estimate, y = Estimate,
+    fill  = is_significant,
+    size  = -log10(`Pr(>|t|)`),
+    shape = variable_cat
+  )) +
+  geom_linerange(stat = "identity", linewidth = 0.5) +
+  geom_hline(yintercept = 0, linewidth = 1) +
+  geom_point(stat = "identity") +
+  xlab("") +
+  ylab("") +
+  scale_fill_manual(values = c("#bdbdbd", "#e41a1c")) +
+  scale_shape_manual(values = c(
+    "Genomics" = 21, "Transcriptomics" = 22, "Imaging" = 23, "Clinical" = 24
+  )) +
+  scale_x_discrete() +
+  scale_y_continuous() +
+  coord_flip() +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(
+    fill  = "none",
+    shape = guide_legend(title = "Variable Category", order = 1, override.aes = list(size = 3)),
+    size  = guide_legend(title = expression(-Log[10] ~ "p-value"))
+  )
+
+# --- S8d: scatter plot comparing coefficients from both models ---
+plot_compare_coeffs <- smry_reads$coefficients %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variable") %>%
+  dplyr::select(variable, coefficient_reads = Estimate, p_value_reads = `Pr(>|t|)`) %>%
+  dplyr::left_join(
+    smry_af$coefficients %>%
+      as.data.frame() %>%
+      tibble::rownames_to_column("variable") %>%
+      dplyr::select(variable, coefficient_af = Estimate, p_value_af = `Pr(>|t|)`),
+    by = "variable"
+  ) %>%
+  dplyr::filter(variable != "(Intercept)") %>%
+  dplyr::mutate(
+    variable_cat   = variable_category(variable),
+    is_significant = p_value_reads < 0.1 | p_value_af < 0.1,
+    variable_cat   = factor(
+      variable_cat,
+      levels  = rev(c("Genomics", "Transcriptomics", "Imaging", "Clinical")),
+      ordered = TRUE
+    )
+  ) %>%
+  ggplot(aes(x = coefficient_reads, y = coefficient_af, shape = variable_cat, fill = is_significant)) +
+  geom_abline(intercept = 0, slope = 1, color = "goldenrod3", linewidth = 1, alpha = 0.85, linetype = 2) +
+  geom_point(stat = "identity", color = "black", size = 3, alpha = 0.75) +
+  scale_fill_manual(values = c("FALSE" = "#ffffff", "TRUE" = "#e41a1c")) +
+  scale_shape_manual(values = c(
+    "Genomics" = 21, "Transcriptomics" = 22, "Imaging" = 23, "Clinical" = 24
+  )) +
+  scale_x_continuous(limits = c(-1, 1.5)) +
+  scale_y_continuous(limits = c(-1, 1.5)) +
+  xlab("Coefficients variables\nregressed number of reads") +
+  ylab("Coefficients variables\nregressed Mean AF") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 12),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 12),
+    axis.text.x  = element_text(size = 12),
+    axis.text.y  = element_text(size = 12)
+  ) +
+  guides(
+    fill  = "none",
+    shape = guide_legend(title = "Variable\nCategory", order = 1, override.aes = list(size = 3))
+  )
+```
+
+<br/>
+<br/>
+
+```{r plot_forest, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4.5, fig.width = 7, fig.cap = '<br/>**Supplementary Figure S8c** Forest plot showing the standardized coefficients of select transcriptomic signatures, clinical parameters, imaging, and genomic covariates in the multivariate regression predicting ctDNA fraction obtained from the PCM at baseline.'}
+
+print(plot_forest)
+```
+
+<br/>
+<br/>
+
+```{r plot_compare_coeffs, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 4.5, fig.cap = '<br/>**Supplementary Figure S8d** Scatter plot comparing the standardized coefficients of the two multivariate regression models predicting baseline cfDNA aligned HPV-16 read pairs (x-axis) versus baseline ctDNA fraction (y-axis) using select transcriptomic signatures, clinical parameters, imaging, and genomic covariates.'}
+
+print(plot_compare_coeffs)
+```
