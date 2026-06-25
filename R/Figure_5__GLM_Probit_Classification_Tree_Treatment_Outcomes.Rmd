@@ -1,0 +1,866 @@
+---
+title: "Figure 5 - ctDNA and imaging kinetics for predicting aggressive disease and treatment outcomes in HPV-associated OPC"
+author:
+  - name: David N Brown, Bill H Diplas
+    affiliation: Memorial Sloan Kettering Cancer Center
+output:
+  html_document:
+    theme: cerulean
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, eval = TRUE, echo = FALSE, results = 'hide', include = FALSE}
+suppressPackageStartupMessages({
+  library("ggplot2")
+  library("readr")
+  library("dplyr")
+  library("tidyr")
+  library("magrittr")
+  library("reshape2")
+  library("viridis")
+  library("ggsignif")
+  library("gghalves")
+  library("gridExtra")
+  library("rpart")
+  library("randomForest")
+  library("pROC")
+  library("plyr")
+})
+
+# --- Data paths ---
+url_manifest                 <- "../data/manifest.txt"
+url_preanalytical_conditions <- "../data/pre-analytical_conditions.txt"
+url_hpv_type                 <- "../data/TM-2021-MSK-002_HPV_Typing_WES_WGS.txt"
+url_clinical                 <- "../data/clinical.txt"
+url_mutation_summary         <- "../data/mutation_summary.maf"
+url_idx_metrics_ft           <- "../data/idx_metrics_ft.txt"
+
+target_contigs <- c(
+  "HPV-16" = "NC001526.4",
+  "HPV-18" = "NC001357.1",
+  "HPV-31" = "J04353.1",
+  "HPV-33" = "M12732.1",
+  "HPV-35" = "X74477.1"
+)
+
+FRAGMENT_LENGTH_THRESHOLD <- 37
+
+scientific_10 <- function(x) {
+  parse(text = gsub("+", "", gsub("e", " %.% 10^", scales::scientific_format()(x)), fixed = TRUE))
+}
+
+# --- Shared rpart control for classification tree CV ---
+paramy <- rpart::rpart.control(
+  minsplit     = 5,
+  minbucket    = 2,
+  maxdepth     = 5,
+  maxcompete   = 1000,
+  maxsurrogate = 100,
+  usesurrogate = 2,
+  cp           = -Inf,
+  xval         = 100
+)
+
+# --- Helper: pivot per-patient per-timepoint data to wide abs/rel columns ---
+make_wide <- function(df, value_col, prefix) {
+  df %>%
+    dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT) %>%
+    dplyr::summarize(v = mean(.data[[value_col]] + 1e-5, na.rm = TRUE), .groups = "drop") %>%
+    reshape2::dcast(
+      formula       = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+      fun.aggregate = function(x) mean(x, na.rm = TRUE),
+      fill          = NaN,
+      value.var     = "v"
+    ) %>%
+    dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
+    dplyr::mutate(
+      !!paste0("rel_", prefix, "_wk1") := wk1 / `Pre-treatment`,
+      !!paste0("rel_", prefix, "_wk2") := wk2 / `Pre-treatment`,
+      !!paste0("rel_", prefix, "_wk3") := wk3 / `Pre-treatment`
+    ) %>%
+    dplyr::rename(
+      !!paste0("abs_", prefix, "_wk0") := `Pre-treatment`,
+      !!paste0("abs_", prefix, "_wk1") := wk1,
+      !!paste0("abs_", prefix, "_wk2") := wk2,
+      !!paste0("abs_", prefix, "_wk3") := wk3
+    )
+}
+
+# --- Helper: run univariate GLM (probit) for each variable against one outcome ---
+run_glm <- function(smry_long, outcome_col) {
+  uvars <- unique(smry_long$variable)
+  vapply(uvars, function(v) {
+    tryCatch({
+      (smry_long %>%
+        dplyr::filter(variable == v) %>%
+        dplyr::mutate(value = log2(value)) %>%
+        stats::glm(
+          formula = as.formula(paste(outcome_col, "~ value")),
+          data    = .,
+          family  = binomial(link = "probit")
+        ) %>%
+        summary() %>%
+        .[["coefficients"]])[2, "Pr(>|z|)"]
+    }, error = function(e) NA_real_)
+  }, numeric(1))
+}
+
+# --- Helper: run Wilcoxon test for each variable against one outcome ---
+run_wilcox <- function(smry_long, outcome_col) {
+  uvars <- unique(smry_long$variable)
+  vapply(uvars, function(v) {
+    tryCatch({
+      smry_long %>%
+        dplyr::filter(variable == v) %>%
+        wilcox.test(
+          formula = as.formula(paste("value ~", outcome_col)),
+          data    = .,
+          exact   = FALSE
+        ) %>%
+        .[["p.value"]]
+    }, error = function(e) NA_real_)
+  }, numeric(1))
+}
+
+# --- Helper: 5-fold CV AUC (100 repeats) using classification tree ---
+ClTree_5Cv_AUC <- function(data) {
+  tidy_data <- tidyr::drop_na(data)
+  roc <- replicate(100, {
+    folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 5))
+    fold_aucs <- vapply(seq_along(folds), function(i) {
+      test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
+      train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramy)
+      pred  <- predict(fit, newdata = test, type = "prob")
+      tryCatch(
+        pROC::roc(response = test$composite_end_point, predictor = pred[, "1"], quiet = TRUE)$auc %>%
+          as.numeric(),
+        error = function(e) NA_real_
+      )
+    }, numeric(1))
+    mean(fold_aucs, na.rm = TRUE)
+  })
+  invisible(roc)
+}
+
+# --- Helper: 10-fold CV misclassification error (100 repeats) ---
+ClTree_10Cv_MCE <- function(data) {
+  tidy_data <- tidyr::drop_na(data)
+  mce <- replicate(100, {
+    folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 10))
+    fold_mce <- vapply(seq_along(folds), function(i) {
+      test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
+      train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramy)
+      pred  <- predict(fit, newdata = test, type = "class")
+      conf  <- table(test$composite_end_point, pred)
+      1 - sum(diag(conf)) / sum(conf)
+    }, numeric(1))
+    mean(fold_mce, na.rm = TRUE)
+  })
+  invisible(100 * mce)
+}
+
+# --- Helper: run CV on a named list of column subsets from smry_ ---
+run_cv_set <- function(smry_, col_sets, cv_fn, seed = 12345) {
+  set.seed(seed)
+  lapply(col_sets, function(cols) {
+    data <- smry_ %>%
+      dplyr::select(composite_end_point, all_of(cols)) %>%
+      dplyr::mutate(composite_end_point = factor(composite_end_point)) %>%
+      tidyr::drop_na()
+    result <- try(cv_fn(data = data))
+    while (inherits(result, "try-error")) result <- try(cv_fn(data = data))
+    result
+  })
+}
+
+assay_levels <- c("cfDNA HPV\nReads", "ctDNA\nFraction", "MRI\nVolume", "ctDNA Fraction\n+ MRI Volume")
+
+# --- Helper: shared box+jitter plot for cross-validation results ---
+cv_boxplot <- function(results, y_lab, y_limits, sig_y1, sig_y2, p1, p2) {
+  combined_median <- results %>%
+    dplyr::as_tibble() %>%
+    reshape2::melt() %>%
+    dplyr::filter(variable == "ctDNA Fraction\n+ MRI Volume") %>%
+    .[["value"]] %>%
+    median()
+
+  results %>%
+    dplyr::as_tibble() %>%
+    reshape2::melt() %>%
+    dplyr::mutate(variable = factor(variable, levels = assay_levels, ordered = TRUE)) %>%
+    ggplot(aes(x = variable, y = value)) +
+    geom_boxplot(stat = "boxplot", outlier.shape = NA, color = "#fc8d62") +
+    geom_jitter(
+      stat     = "identity",
+      position = position_jitterdodge(jitter.width = 0.2),
+      shape    = 21, size = 2, fill = "white", alpha = 0.55, color = "#fc8d62"
+    ) +
+    geom_hline(yintercept = combined_median, linetype = 2, inherit.aes = FALSE) +
+    scale_y_continuous(limits = y_limits) +
+    xlab("") +
+    ylab(y_lab) +
+    geom_signif(annotation = formatC(p1, digits = 1),
+                y_position = sig_y1, xmin = 2.3, xmax = 4,
+                tip_length = c(0.03, 0.03), color = "black") +
+    geom_signif(annotation = formatC(p2, digits = 1),
+                y_position = sig_y2, xmin = 3.3, xmax = 4,
+                tip_length = c(0.03, 0.03), color = "black") +
+    theme_classic() +
+    theme(
+      axis.title.x = element_text(margin = ggplot2::margin(t = 20)),
+      axis.title.y = element_text(margin = ggplot2::margin(r = 20)),
+      axis.text.x  = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
+      axis.text.y  = element_text(size = 12)
+    )
+}
+
+# --- Helper: half-violin + half-dotplot + signif for risk-group box plots ---
+risk_group_plot <- function(df, var, y_expr, y_scale, y_lab, sig_y) {
+  df %>%
+    dplyr::filter(variable == var) %>%
+    dplyr::mutate(composite_end_point = factor(composite_end_point, levels = c(0, 1), ordered = TRUE)) %>%
+    ggplot(aes(x = composite_end_point, y = !!y_expr, fill = composite_end_point)) +
+    geom_half_dotplot(
+      binaxis = "y", stackdir = "up", dotsize = 0.65,
+      right = TRUE, method = "dotdensity", fill = "white"
+    ) +
+    geom_half_violin(
+      stat = "half_ydensity", side = "l",
+      trim = FALSE, scale = "count", color = "black"
+    ) +
+    scale_fill_brewer(type = "qual", palette = 7) +
+    scale_x_discrete(breaks = c(0, 1), labels = c("Low", "High")) +
+    y_scale +
+    xlab("Risk group") +
+    ylab(y_lab) +
+    geom_signif(
+      stat        = "signif",
+      comparisons = list(c("0", "1")),
+      test        = "wilcox.test",
+      test.args   = list(alternative = "two.sided", exact = FALSE),
+      linewidth   = 0.55,
+      textsize    = 4,
+      color       = "grey25",
+      vjust       = -0.5,
+      y_position  = sig_y
+    ) +
+    theme_classic() +
+    theme(
+      axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
+      axis.title.y = element_text(margin = ggplot2::margin(r = 20), size = 12),
+      axis.text.x  = element_text(size = 11),
+      axis.text.y  = element_text(size = 12)
+    ) +
+    guides(color = "none", fill = "none")
+}
+
+# --- Helper: reformat variable names for the Gini importance plot ---
+format_vip_labels <- function(df) {
+  df %>%
+    dplyr::mutate(
+      variables = gsub("abs_AF_",  "ctDNA Fraction (", variables, fixed = TRUE),
+      variables = gsub("abs_HPV_", "cfDNA HPV Reads (", variables, fixed = TRUE),
+      variables = gsub("abs_MRI_", "MRI Volume (",      variables, fixed = TRUE),
+      variables = paste0(variables, ")"),
+      variables = gsub("wk", "Week ", variables, fixed = TRUE),
+      week      = dplyr::case_when(
+        grepl("Week 0", variables) ~ 0L,
+        grepl("Week 1", variables) ~ 1L,
+        grepl("Week 2", variables) ~ 2L,
+        grepl("Week 3", variables) ~ 3L
+      ),
+      category = dplyr::case_when(
+        grepl("ctDNA", variables) ~ 1L,
+        grepl("cfDNA", variables) ~ 2L,
+        grepl("MRI",   variables) ~ 3L
+      )
+    ) %>%
+    dplyr::arrange(desc(week), desc(category)) %>%
+    dplyr::mutate(variables = factor(variables, levels = unique(variables), ordered = TRUE))
+}
+```
+
+```{r load_shared_data, eval = TRUE, include = FALSE}
+
+manifest_raw <- readr::read_tsv(
+  url_manifest, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::filter(!is.na(bam_file_name_hpv)) %>%
+  dplyr::mutate(sample_uuid = paste0(sample_id_mskcc, "-", sample_id_invitae))
+
+preanalytical_conditions <- readr::read_tsv(
+  url_preanalytical_conditions, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+hpv_smry <- readr::read_tsv(
+  url_hpv_type, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::mutate(
+    patient_id_mskcc = gsub("-T", "", patient_name, fixed = TRUE),
+    patient_id_mskcc = gsub("155salv", "155", patient_id_mskcc, fixed = TRUE),
+    hpv_type_wes     = gsub("HPV", "HPV-", hpv_type_wes, fixed = TRUE),
+    hpv_type_wgs     = gsub("HPV", "HPV-", hpv_type_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = gsub("HPV", "HPV-", hpv_type_wes_wgs, fixed = TRUE),
+    hpv_type_wes_wgs = dplyr::coalesce(hpv_type_wes_wgs, "Unknown")
+  )
+
+manifest <- manifest_raw %>%
+  dplyr::left_join(preanalytical_conditions, by = "sample_id_mskcc") %>%
+  dplyr::mutate(
+    patient_id_mskcc = dplyr::case_when(
+      is.na(patient_id_mskcc) & sample_id_mskcc == "21-144-03654" ~ "CTMS-164",
+      TRUE ~ patient_id_mskcc
+    ),
+    sample_name = paste0(sample_id_mskcc, "-", sample_id_invitae)
+  ) %>%
+  dplyr::left_join(hpv_smry, by = "patient_id_mskcc")
+
+mutation_smry <- readr::read_tsv(
+  url_mutation_summary, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+clinical <- readr::read_tsv(
+  url_clinical, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert()
+
+# --- Per-sample mutation AF summary ---
+mut_af_smry <- mutation_smry %>%
+  dplyr::filter(FILTER == "PASS") %>%
+  dplyr::group_by(Tumor_Sample_Barcode) %>%
+  dplyr::summarize(mean_af = mean(t_maf), .groups = "drop") %>%
+  dplyr::rename(sample_name = Tumor_Sample_Barcode)
+
+# --- Index metrics: all timepoints, HPV panel type resolved ---
+idx_metrics_ft <- readr::read_tsv(
+  url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())
+) %>%
+  readr::type_convert() %>%
+  dplyr::select(
+    sample_name     = SAMPLE_NAME,
+    contig          = CHROMOSOME,
+    aligned_reads   = ALIGNED_READS,
+    fragment_length = FRAGMENT_LENGTH
+  ) %>%
+  dplyr::left_join(
+    dplyr::tibble(contig = target_contigs, chromosome = names(target_contigs)),
+    by = "contig"
+  ) %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD, !is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::left_join(
+    dplyr::select(clinical, patient_id_mskcc, hpv_type_panel),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::mutate(
+    hpv_type_panel         = gsub("HPV", "HPV-", hpv_type_panel, fixed = TRUE),
+    hpv_type_wes_wgs_panel = dplyr::case_when(
+      hpv_type_wes_wgs == "Unknown" ~ hpv_type_panel,
+      TRUE ~ hpv_type_wes_wgs
+    ),
+    hpv_type_wes_wgs_panel = dplyr::coalesce(hpv_type_wes_wgs_panel, "Unknown")
+  ) %>%
+  dplyr::filter(chromosome == hpv_type_wes_wgs_panel) %>%
+  dplyr::left_join(mut_af_smry, by = "sample_name") %>%
+  dplyr::mutate(
+    timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT / 7),
+    timepoint_weeks_since_start_of_RT = dplyr::case_when(
+      timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+      TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+    )
+  )
+
+# --- Shared wide summary: AF, HPV, MRI joined with outcome ---
+# Note: MRI uses one-week imaging offset (wk0/1/2/3 ← wk0/2/3/4)
+smry_wide <- make_wide(idx_metrics_ft, "mean_af", "AF") %>%
+  dplyr::full_join(
+    make_wide(dplyr::filter(idx_metrics_ft, hpv_type_wes_wgs == "HPV-16"), "aligned_reads", "HPV"),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::full_join(clinical, by = "patient_id_mskcc") %>%
+  dplyr::select(
+    patient_id_mskcc,
+    composite_end_point, neck_dissection_yes_no, hypoxia_resolution,
+    abs_AF_wk0,  abs_AF_wk1,  abs_AF_wk2,  abs_AF_wk3,
+    rel_AF_wk1,  rel_AF_wk2,  rel_AF_wk3,
+    abs_HPV_wk0, abs_HPV_wk1, abs_HPV_wk2, abs_HPV_wk3,
+    rel_HPV_wk1, rel_HPV_wk2, rel_HPV_wk3,
+    abs_MRI_wk0 = MRI_rawdata_wk0,
+    abs_MRI_wk1 = MRI_rawdata_wk2,
+    abs_MRI_wk2 = MRI_rawdata_wk3,
+    abs_MRI_wk3 = MRI_rawdata_wk4
+  ) %>%
+  dplyr::mutate(
+    rel_MRI_wk1         = abs_MRI_wk1 / abs_MRI_wk0,
+    rel_MRI_wk2         = abs_MRI_wk2 / abs_MRI_wk0,
+    rel_MRI_wk3         = abs_MRI_wk3 / abs_MRI_wk0,
+    composite_end_point = dplyr::if_else(composite_end_point, 1L, 0L),
+    neck_dissection_yes_no = dplyr::case_when(
+      neck_dissection_yes_no == "yes" ~ "1",
+      neck_dissection_yes_no == "no"  ~ "0"
+    ),
+    hypoxia_resolution = dplyr::case_when(
+      hypoxia_resolution == "persistent" ~ "1",
+      hypoxia_resolution == "resolved"   ~ "0"
+    )
+  ) %>%
+  readr::type_convert()
+```
+
+```{r build_plots_5bc, eval = TRUE, include = FALSE}
+
+# --- Long format for GLM / Wilcoxon ---
+smry_long <- smry_wide %>%
+  dplyr::select(-patient_id_mskcc) %>%
+  reshape2::melt(
+    id.vars = c("composite_end_point", "neck_dissection_yes_no", "hypoxia_resolution")
+  ) %>%
+  tidyr::drop_na()
+
+uvars <- unique(smry_long$variable)
+
+p1 <- run_glm(smry_long,    "composite_end_point")
+p2 <- run_glm(smry_long,    "neck_dissection_yes_no")
+p3 <- run_glm(smry_long,    "hypoxia_resolution")
+q1 <- run_wilcox(smry_long, "composite_end_point")
+q2 <- run_wilcox(smry_long, "neck_dissection_yes_no")
+q3 <- run_wilcox(smry_long, "hypoxia_resolution")
+
+baseline_rows <- dplyr::tibble(
+  variables              = rep(c("rel_AF_wk0", "rel_MRI_wk0", "rel_HPV_wk0"), 2),
+  `De-escalation failure` = 1,
+  `PET response`          = 1,
+  `Risk group`            = 1,
+  Method                  = rep(c("log", "u"), each = 3)
+)
+
+res_ <- dplyr::bind_rows(
+  dplyr::tibble(
+    variables              = uvars,
+    `De-escalation failure` = p2,
+    `PET response`          = p3,
+    `Risk group`            = p1,
+    Method                  = "log"
+  ),
+  dplyr::tibble(
+    variables              = uvars,
+    `De-escalation failure` = q2,
+    `PET response`          = q3,
+    `Risk group`            = q1,
+    Method                  = "u"
+  ),
+  baseline_rows
+)
+
+# --- F5b: risk-group box plots at week 2 ---
+plot_chpv <- risk_group_plot(
+  df      = smry_long,
+  var     = "abs_HPV_wk2",
+  y_expr  = quote(100 * value),
+  y_scale = scale_y_log10(
+    limits = c(1e2, 1e12),
+    breaks = c(1e2, 1e4, 1e6, 1e8, 1e10),
+    labels = scientific_10
+  ),
+  y_lab  = "cfDNA Aligned HPV Read Pairs",
+  sig_y  = 0.95 * log10(3e11)
+)
+
+plot_ctdna <- risk_group_plot(
+  df      = smry_long,
+  var     = "abs_AF_wk2",
+  y_expr  = quote(100 * value),
+  y_scale = scale_y_log10(
+    limits = c(NA, 1000),
+    breaks = c(0.001, 0.01, 0.1, 1, 10),
+    labels = scientific_10
+  ),
+  y_lab  = "Mean AF (%)",
+  sig_y  = 0.9 * log10(500)
+)
+
+plot_vol <- risk_group_plot(
+  df      = smry_long,
+  var     = "abs_MRI_wk2",
+  y_expr  = quote((100 * value) / 1000),
+  y_scale = scale_y_log10(
+    limits = c(1e4, 1e8) / 1000,
+    breaks = c(1e4, 1e5, 1e6, 1e7) / 1000,
+    labels = scientific_10(c(1e2, 1e3, 1e4, 1e5) / 1000)
+  ),
+  y_lab  = expression("MRI Volume " (cm^3)),
+  sig_y  = 0.95 * log10(7e7 / 1000)
+)
+
+# --- F5c: univariate association heatmap ---
+plot_hm <- res_ %>%
+  dplyr::filter(Method == "log") %>%
+  dplyr::select(-Method) %>%
+  reshape2::melt() %>%
+  dplyr::mutate(
+    week  = dplyr::case_when(
+      grepl("wk0", variables, fixed = TRUE) ~ "Pre-treat\n-ment",
+      grepl("wk1", variables, fixed = TRUE) ~ "Week 1",
+      grepl("wk2", variables, fixed = TRUE) ~ "Week 2",
+      grepl("wk3", variables, fixed = TRUE) ~ "Week 3"
+    ),
+    assay = dplyr::case_when(
+      grepl("AF",  variables, fixed = TRUE) ~ "PCM",
+      grepl("HPV", variables, fixed = TRUE) ~ "HPV",
+      grepl("MRI", variables, fixed = TRUE) ~ "MRI"
+    ),
+    mode  = dplyr::case_when(
+      grepl("rel", variables, fixed = TRUE) ~ "Relative",
+      grepl("abs", variables, fixed = TRUE) ~ "Absolute"
+    ),
+    mode      = factor(mode,     levels = c("Absolute", "Relative"), ordered = TRUE),
+    assay     = factor(assay,    levels = c("HPV", "PCM", "MRI"),    ordered = TRUE),
+    variable  = factor(variable, levels = c("Risk group", "PET response", "De-escalation failure"), ordered = TRUE),
+    log_value = dplyr::case_when(
+      week == "Pre-treat\n-ment" & mode == "Relative" ~ 0,
+      TRUE ~ -log10(value)
+    ),
+    value = dplyr::case_when(
+      week == "Pre-treat\n-ment" & mode == "Relative" ~ NA_real_,
+      TRUE ~ value
+    )
+  ) %>%
+  dplyr::select(-variables) %>%
+  ggplot(aes(x = week, y = variable, fill = log_value, label = signif(value, 2))) +
+  geom_tile(stat = "identity", color = "white", linewidth = 0.5) +
+  geom_text(color = "white", size = 2) +
+  scale_fill_viridis(breaks = seq(0, 3, by = 0.5)) +
+  xlab("") +
+  ylab("") +
+  theme_minimal() +
+  theme(
+    axis.title.x     = element_text(margin = ggplot2::margin(t = 20), size = 12),
+    axis.title.y     = element_text(margin = ggplot2::margin(r = 20), size = 12),
+    axis.text.x      = element_text(size = 10, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y      = element_text(size = 12),
+    strip.background = element_blank()
+  ) +
+  facet_grid(mode ~ assay) +
+  guides(fill = guide_colourbar(title = expression(-Log[10](q))))
+```
+
+```{r build_plot_5d, eval = TRUE, include = FALSE}
+
+# Data for classification tree CV: drop-na on composite endpoint + AF + MRI
+idx_metrics_ft <- readr::read_tsv(file = url_idx_metrics_ft, col_names = TRUE, col_types = cols(.default = col_character())) %>%
+  readr::type_convert() %>%
+  dplyr::select(sample_name = SAMPLE_NAME, contig = CHROMOSOME, aligned_reads = ALIGNED_READS, fragment_length = FRAGMENT_LENGTH) %>%
+  dplyr::left_join(
+    dplyr::tibble(
+      contig = target_contigs,
+      chromosome = names(target_contigs)
+    ),
+    by = "contig") %>%
+  dplyr::filter(fragment_length == FRAGMENT_LENGTH_THRESHOLD) %>%
+  dplyr::filter(!is.na(chromosome)) %>%
+  dplyr::left_join(manifest, by = "sample_name") %>%
+  dplyr::left_join(
+    clinical %>%
+    dplyr::select(patient_id_mskcc, hpv_type_panel),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::mutate(hpv_type_panel = gsub(pattern = "HPV", replacement = "HPV-", x = hpv_type_panel, fixed = TRUE)) %>%
+  dplyr::mutate(hpv_type_wes_wgs_panel = case_when(
+      hpv_type_wes_wgs == "Unknown" ~ hpv_type_panel,
+      TRUE ~ hpv_type_wes_wgs
+    )
+  ) %>%
+  dplyr::mutate(hpv_type_wes_wgs_panel = case_when(
+      is.na(hpv_type_wes_wgs_panel) ~ "Unknown",
+      TRUE ~ hpv_type_wes_wgs_panel
+    )
+  ) %>%
+  dplyr::filter(chromosome == hpv_type_wes_wgs_panel) %>%
+  dplyr::left_join(
+    mutation_smry %>%
+    dplyr::filter(FILTER == "PASS") %>%
+    dplyr::group_by(Tumor_Sample_Barcode, .drop = TRUE) %>%
+    dplyr::summarize(mean_af = mean(t_maf)) %>%
+    dplyr::ungroup() %>%
+    dplyr::rename(sample_name = Tumor_Sample_Barcode),
+    by = "sample_name"
+  ) %>%
+  dplyr::mutate(timepoint_weeks_since_start_of_RT = floor(timepoint_days_since_start_of_RT/7)) %>%
+  dplyr::mutate(timepoint_weeks_since_start_of_RT = case_when(
+      timepoint_weeks_since_start_of_RT < 0 ~ "Pre-treatment",
+      TRUE ~ paste0("wk", timepoint_weeks_since_start_of_RT)
+    )
+  )
+
+smry_cv <- idx_metrics_ft %>%
+  dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+  dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT, .drop = TRUE) %>%
+  dplyr::summarize(mean_af = 100*mean(mean_af+1e-5, na.rm = TRUE)) %>%
+  reshape2::dcast(
+      formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+      fun.aggregate = function(x) { mean(x, na.rm=TRUE) },
+      fill = NaN,
+      value.var = "mean_af"
+  ) %>%
+  dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
+  dplyr::mutate(
+    rel_AF_wk1 = wk1/`Pre-treatment`,
+    rel_AF_wk2 = wk2/`Pre-treatment`,
+    rel_AF_wk3 = wk3/`Pre-treatment`
+  ) %>%
+  dplyr::rename(
+    abs_AF_wk0 = `Pre-treatment`,
+    abs_AF_wk1 = wk1,
+    abs_AF_wk2 = wk2,
+    abs_AF_wk3 = wk3
+  ) %>%
+  dplyr::full_join(
+    idx_metrics_ft %>%
+    dplyr::filter(hpv_type_wes_wgs == "HPV-16") %>%
+    dplyr::group_by(patient_id_mskcc, timepoint_weeks_since_start_of_RT, .drop = TRUE) %>%
+    dplyr::summarize(aligned_reads = mean(aligned_reads)) %>%
+    dplyr::ungroup() %>%
+    reshape2::dcast(
+        formula = patient_id_mskcc ~ timepoint_weeks_since_start_of_RT,
+        fun.aggregate = function(x) { mean(x, na.rm=TRUE) }, fill = NaN, value.var = "aligned_reads"
+    ) %>%
+    dplyr::select(patient_id_mskcc, `Pre-treatment`, wk1, wk2, wk3) %>%
+    dplyr::mutate(
+      rel_HPV_wk1 = wk1/`Pre-treatment`,
+      rel_HPV_wk2 = wk2/`Pre-treatment`,
+      rel_HPV_wk3 = wk3/`Pre-treatment`
+    ) %>%
+    dplyr::rename(
+      abs_HPV_wk0 = `Pre-treatment`,
+      abs_HPV_wk1 = wk1,
+      abs_HPV_wk2 = wk2,
+      abs_HPV_wk3 = wk3
+    ),
+    by = "patient_id_mskcc"
+  ) %>%
+  dplyr::full_join(clinical, by = "patient_id_mskcc") %>%
+  dplyr::select(
+    patient_id_mskcc,
+    composite_end_point,
+    abs_AF_wk0, abs_AF_wk1, abs_AF_wk2, abs_AF_wk3,
+    rel_AF_wk1, rel_AF_wk2, rel_AF_wk3,
+    abs_HPV_wk0, abs_HPV_wk1, abs_HPV_wk2, abs_HPV_wk3,
+    rel_HPV_wk1, rel_HPV_wk2, rel_HPV_wk3,
+    abs_MRI_wk0 = MRI_rawdata_wk0,
+    abs_MRI_wk1 = MRI_rawdata_wk2,
+    abs_MRI_wk2 = MRI_rawdata_wk3,
+    abs_MRI_wk3 = MRI_rawdata_wk4
+  ) %>%
+  dplyr::mutate(
+    rel_MRI_wk1 = abs_MRI_wk1/abs_MRI_wk0,
+    rel_MRI_wk2 = abs_MRI_wk2/abs_MRI_wk0,
+    rel_MRI_wk3 = abs_MRI_wk1/abs_MRI_wk0
+  ) %>%
+  dplyr::mutate(composite_end_point = case_when(
+      composite_end_point ~ 1,
+      !composite_end_point ~ 0
+    )
+  ) %>%
+  tidyr::drop_na(composite_end_point, contains("AF"), contains("MRI"))
+			
+col_sets <- list(
+  "cfDNA HPV\nReads"           	 = c("abs_HPV_wk0", "abs_HPV_wk1", "abs_HPV_wk2"),
+  "ctDNA\nFraction"            	 = c("abs_AF_wk0",  "abs_AF_wk1",  "abs_AF_wk2"),
+  "MRI\nVolume"                	 = c("abs_MRI_wk0", "abs_MRI_wk1", "abs_MRI_wk2"),
+  "ctDNA Fraction\n+ MRI Volume" = c("abs_AF_wk0", "abs_AF_wk1", "abs_AF_wk2",
+                                     "abs_MRI_wk0", "abs_MRI_wk1", "abs_MRI_wk2")
+)
+
+Test_Error <- run_cv_set(smry_cv, col_sets, ClTree_10Cv_MCE)
+
+p_mce_1 <- wilcox.test(
+  x = Test_Error[["ctDNA Fraction\n+ MRI Volume"]],
+  y = Test_Error[["ctDNA\nFraction"]],
+  alternative = "two.sided"
+)$p.value
+
+p_mce_2 <- wilcox.test(
+  x = Test_Error[["ctDNA Fraction\n+ MRI Volume"]],
+  y = Test_Error[["MRI\nVolume"]],
+  alternative = "two.sided"
+)$p.value
+
+plot_mce <- cv_boxplot(
+  results  = Test_Error,
+  y_lab    = "10-Fold Misclass-\nification Error (%)",
+  y_limits = c(0, 100),
+  sig_y1   = 85,
+  sig_y2   = 75,
+  p1       = p_mce_1,
+  p2       = p_mce_2
+)
+```
+
+```{r build_plot_5e, eval = TRUE, include = FALSE}
+
+Test_Auc <- run_cv_set(smry_cv, col_sets, ClTree_5Cv_AUC)
+
+p_auc_1 <- wilcox.test(
+  x = Test_Auc[["ctDNA Fraction\n+ MRI Volume"]],
+  y = Test_Auc[["ctDNA\nFraction"]],
+  alternative = "two.sided"
+)$p.value
+
+p_auc_2 <- wilcox.test(
+  x = Test_Auc[["ctDNA Fraction\n+ MRI Volume"]],
+  y = Test_Auc[["MRI\nVolume"]],
+  alternative = "two.sided"
+)$p.value
+
+plot_auc <- cv_boxplot(
+  results  = Test_Auc,
+  y_lab    = "5-Fold Cross-\nvalidated AUC",
+  y_limits = c(0, 1.5),
+  sig_y1   = 0.85 * 1.5,
+  sig_y2   = 0.75 * 1.5,
+  p1       = p_auc_1,
+  p2       = p_auc_2
+)
+```
+
+```{r build_plot_5g, eval = TRUE, include = FALSE}
+
+# Random forest variable importance on absolute features (HPV-16 patients only,
+# using hpv_type_wes_wgs for consistency with the shared idx_metrics_ft)
+rf_data <- smry_wide %>%
+  dplyr::filter(!is.na(composite_end_point)) %>%
+  dplyr::select(
+    composite_end_point,
+    abs_AF_wk0,  abs_AF_wk1,  abs_AF_wk2,
+    abs_HPV_wk0, abs_HPV_wk1, abs_HPV_wk2,
+    abs_MRI_wk0, abs_MRI_wk1, abs_MRI_wk2
+  ) %>%
+  dplyr::mutate(composite_end_point = factor(composite_end_point)) %>%
+  tidyr::drop_na()
+
+set.seed(1234567)
+rf <- randomForest(
+  formula   = composite_end_point ~ .,
+  data      = rf_data,
+  ntree     = 1000,
+  nodesize  = 1,
+  maxnodes  = 10,
+  importance = TRUE,
+  proximity  = TRUE
+)
+
+vip <- importance(rf) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("variables") %>%
+  format_vip_labels()
+
+# Null distribution: permute labels 100 times
+null_vip <- do.call(rbind, lapply(seq_len(100), function(i) {
+  perm_data <- rf_data %>%
+    dplyr::mutate(composite_end_point = sample(composite_end_point, nrow(.), replace = TRUE))
+  null_rf <- randomForest(
+    formula   = composite_end_point ~ .,
+    data      = perm_data,
+    ntree     = 1000,
+    nodesize  = 1,
+    maxnodes  = 10,
+    importance = TRUE,
+    proximity  = TRUE
+  )
+  importance(null_rf) %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("variables")
+})) %>%
+  format_vip_labels()
+
+plot_gini <- null_vip %>%
+  ggplot(aes(
+    x     = MeanDecreaseGini,
+    y     = variables,
+    fill  = factor(week),
+    color = factor(week)
+  )) +
+  geom_density_ridges(stat = "density_ridges", alpha = 0.45, bandwidth = 0.05, scale = 1.25) +
+  geom_segment(
+    data    = vip,
+    mapping = aes(
+      x = MeanDecreaseGini, xend = MeanDecreaseGini,
+      y = as.numeric(variables), yend = as.numeric(variables) + 0.5
+    ),
+    color       = "black",
+    linewidth   = 0.5,
+    inherit.aes = FALSE
+  ) +
+  geom_point(
+    data    = vip,
+    mapping = aes(
+      x    = MeanDecreaseGini,
+      y    = as.numeric(variables) + 0.5,
+      fill = factor(week)
+    ),
+    color       = "black",
+    shape       = 21,
+    size        = 2,
+    inherit.aes = FALSE
+  ) +
+  scale_fill_brewer(type = "qual", palette = 7) +
+  scale_color_brewer(type = "qual", palette = 7) +
+  xlab("\nVariable Importance\n\n") +
+  ylab("") +
+  theme_classic() +
+  theme(
+    axis.title.x  = element_text(size = 14),
+    axis.title.y  = element_text(size = 14),
+    axis.text.x   = element_text(size = 12),
+    axis.text.y   = element_text(size = 12, hjust = 1),
+    axis.line.y   = element_blank(),
+    axis.ticks.y  = element_blank()
+  ) +
+  guides(fill = "none", color = "none")
+```
+
+<br/>
+<br/>
+
+```{r plot_week2, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 8, fig.cap = '<br/>**Figure 5b**'}
+
+suppressWarnings(grid.arrange(plot_chpv, plot_ctdna, plot_vol, nrow = 1, ncol = 3))
+```
+
+<br/>
+<br/>
+
+```{r plot_univariate_heatmap, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5/1.25, fig.width = 10/1.2, fig.cap = '<br/>**Figure 5c**'}
+
+print(plot_hm)
+```
+
+<br/>
+<br/>
+
+```{r plot_10x_mce, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5d**'}
+
+print(plot_mce)
+```
+
+<br/>
+<br/>
+
+```{r plot_5x_auc, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5e**'}
+
+print(plot_auc)
+```
+
+<br/>
+<br/>
+
+```{r plot_gini, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 5, fig.cap = '<br/>**Figure 5g**'}
+
+print(plot_gini)
+```
