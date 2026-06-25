@@ -284,7 +284,7 @@ plot_ <- res_ %>%
   dplyr::select(-Method) %>%
   reshape2::melt() %>%
   dplyr::mutate(
-    value = -log10(p.adjust(value, method = "BH")),
+    value = p.adjust(value, method = "BH"),
     week  = dplyr::case_when(
       grepl("wk0", variables, fixed = TRUE) ~ "Pre-treat\n-ment",
       grepl("wk1", variables, fixed = TRUE) ~ "Week 1",
@@ -302,10 +302,18 @@ plot_ <- res_ %>%
     ),
     mode     = factor(mode,     levels = c("Absolute", "Relative"), ordered = TRUE),
     assay    = factor(assay,    levels = c("HPV", "PCM", "MRI"),   ordered = TRUE),
-    variable = factor(variable, levels = c("Risk group", "PET response", "De-escalation failure"), ordered = TRUE)
+    variable = factor(variable, levels = c("Risk group", "PET response", "De-escalation failure"), ordered = TRUE),
+    log_value = dplyr::case_when(
+      week == "Pre-treat\n-ment" & mode == "Relative" ~ 0,
+      TRUE ~ -log10(value)
+    ),
+    value = dplyr::case_when(
+      week == "Pre-treat\n-ment" & mode == "Relative" ~ NA_real_,
+      TRUE ~ value
+    )
   ) %>%
   dplyr::select(-variables) %>%
-  ggplot(aes(x = week, y = variable, fill = value, label = signif(10^(-value), 2))) +
+  ggplot(aes(x = week, y = variable, fill = log_value, label = signif(value, 2))) +
   geom_tile(stat = "identity", color = "white", linewidth = 0.5) +
   geom_text(color = "white", size = 2) +
   scale_fill_viridis(breaks = seq(from = 0, to = 1.45, by = 0.35)) +
