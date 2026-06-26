@@ -125,7 +125,7 @@ run_wilcox <- function(smry_long, outcome_col) {
 # --- Helper: 5-fold CV AUC (100 repeats) using classification tree ---
 ClTree_5Cv_AUC <- function(data) {
   tidy_data <- tidyr::drop_na(data)
-  roc <- replicate(100, {
+  roc <- replicate(1000, {
     folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 5))
     fold_aucs <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
@@ -146,7 +146,7 @@ ClTree_5Cv_AUC <- function(data) {
 # --- Helper: 10-fold CV misclassification error (100 repeats) ---
 ClTree_10Cv_MCE <- function(data) {
   tidy_data <- tidyr::drop_na(data)
-  mce <- replicate(100, {
+  mce <- replicate(1000, {
     folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 10))
     fold_mce <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)

@@ -23,6 +23,7 @@ suppressPackageStartupMessages({
   library("corrplot")
   library("RColorBrewer")
   library("gridExtra")
+  library("MASS")
 })
 
 # --- Data paths ---
@@ -932,12 +933,15 @@ corrplot::corrplot(
   is.corr      = FALSE,
   diag         = TRUE,
   addgrid.col  = NA,
-  addCoef.col  = "black",
+  addCoef.col  = "white",
   order        = "original",
+  outline      = TRUE,
   number.cex   = 0.75,
   number.font  = 1,
+  number.digits = 0,
   tl.cex       = 1,
   tl.col       = "black",
+  tl.srt       = 0,
   cl.pos       = "r",
   cl.ratio     = 0.1,
   cl.length    = 7,
