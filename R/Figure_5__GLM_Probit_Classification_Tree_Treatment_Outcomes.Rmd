@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
   library("viridis")
   library("ggsignif")
   library("gghalves")
+  library("ggridges")
   library("gridExtra")
   library("rpart")
   library("randomForest")
@@ -760,10 +761,10 @@ vip <- importance(rf) %>%
   tibble::rownames_to_column("variables") %>%
   format_vip_labels()
 
-# Null distribution: permute labels 100 times
-null_vip <- do.call(rbind, lapply(seq_len(100), function(i) {
+# Null distribution: permute labels 1000 times
+null_vip <- do.call(rbind, lapply(seq_len(1000), function(i) {
   perm_data <- rf_data %>%
-    dplyr::mutate(composite_end_point = sample(composite_end_point, nrow(.), replace = TRUE))
+    dplyr::mutate(composite_end_point = sample(composite_end_point, nrow(.), replace = FALSE))
   null_rf <- randomForest(
     formula   = composite_end_point ~ .,
     data      = perm_data,
