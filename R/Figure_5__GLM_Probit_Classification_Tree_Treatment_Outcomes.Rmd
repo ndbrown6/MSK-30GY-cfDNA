@@ -780,18 +780,36 @@ null_vip <- do.call(rbind, lapply(seq_len(1000), function(i) {
 })) %>%
   format_vip_labels()
 
-plot_gini <- null_vip %>%
+# P-value calculation from Null distribution 
+p = null_vip %>%
+	dplyr::select(variables, MeanDecreaseAccuracy_Null = MeanDecreaseAccuracy) %>%
+	dplyr::left_join(vip %>%
+					 dplyr::select(variables, MeanDecreaseAccuracy_Obs = MeanDecreaseAccuracy),
+					 by = "variables") %>%
+	dplyr::mutate(empirical_p = MeanDecreaseAccuracy_Null >= MeanDecreaseAccuracy_Obs) %>%
+	dplyr::group_by(variables) %>%
+	dplyr::summarize(empirical_p = sum(empirical_p)/length(empirical_p)) %>%
+	dplyr::mutate(empirical_p = as.character(empirical_p)) %>%
+    dplyr::mutate(
+      empirical_p = case_when(
+		empirical_p < .01 ~ paste0(empirical_p, "**"),
+		empirical_p < .05 ~ paste0(empirical_p, "*"),
+		TRUE ~ empirical_p
+	  )
+    )
+
+plot_accu <- null_vip %>%
   ggplot(aes(
-    x     = MeanDecreaseGini,
+    x     = MeanDecreaseAccuracy,
     y     = variables,
     fill  = factor(week),
     color = factor(week)
   )) +
-  geom_density_ridges(stat = "density_ridges", alpha = 0.45, bandwidth = 0.05, scale = 1.25) +
+  geom_density_ridges(stat = "density_ridges", alpha = 0.45, bandwidth = 0.25, scale = 1.25) +
   geom_segment(
     data    = vip,
     mapping = aes(
-      x = MeanDecreaseGini, xend = MeanDecreaseGini,
+      x = MeanDecreaseAccuracy, xend = MeanDecreaseAccuracy,
       y = as.numeric(variables), yend = as.numeric(variables) + 0.5
     ),
     color       = "black",
@@ -801,7 +819,7 @@ plot_gini <- null_vip %>%
   geom_point(
     data    = vip,
     mapping = aes(
-      x    = MeanDecreaseGini,
+      x    = MeanDecreaseAccuracy,
       y    = as.numeric(variables) + 0.5,
       fill = factor(week)
     ),
@@ -810,6 +828,16 @@ plot_gini <- null_vip %>%
     size        = 2,
     inherit.aes = FALSE
   ) +
+  geom_text(
+    data	= p,
+    mapping = aes(
+      x		= Inf,
+      y		= (1:9) + 0.5,
+      label = empirical_p
+    ),
+    hjust		= 1.1,
+    size		= 3,
+    inherit.aes = FALSE) +
   scale_fill_brewer(type = "qual", palette = 7) +
   scale_color_brewer(type = "qual", palette = 7) +
   xlab("\nVariable Importance\n\n") +
@@ -829,7 +857,7 @@ plot_gini <- null_vip %>%
 <br/>
 <br/>
 
-```{r plot_week2, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 8, fig.cap = '<br/>**Figure 5b**'}
+```{r plot_week2, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 3, fig.width = 8, fig.cap = '<br/>**Figure 5b** Box plot of week 2 absolute cfDNA aligned HPV-16 read pairs, ctDNA fraction, and MRI tumor volume.'}
 
 suppressWarnings(grid.arrange(plot_chpv, plot_ctdna, plot_vol, nrow = 1, ncol = 3))
 ```
@@ -837,7 +865,7 @@ suppressWarnings(grid.arrange(plot_chpv, plot_ctdna, plot_vol, nrow = 1, ncol = 
 <br/>
 <br/>
 
-```{r plot_univariate_heatmap, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5/1.25, fig.width = 10/1.2, fig.cap = '<br/>**Figure 5c**'}
+```{r plot_univariate_heatmap, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5/1.25, fig.width = 10/1.2, fig.cap = '<br/>**Figure 5c** Heatmap of univariate associations between assay modalities and treatment outcomes. Depicted are the significance (-Log10 p-value) of HPV, PCM, and MRI tumor volume at weeks 1-3 for predicting de-escalation failure, no PET response, and combined risk group. The top rows show the absolute values whilst the bottom correspond to values relative to baseline.'}
 
 print(plot_hm)
 ```
@@ -845,7 +873,7 @@ print(plot_hm)
 <br/>
 <br/>
 
-```{r plot_10x_mce, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5d**'}
+```{r plot_10x_mce, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5d** Box plot of 10-fold cross-validated misclassification error rates for predicting risk group. Decision trees were constructed using absolute pre-treatment, week 1, and week 2 measures for single modalities (cfDNA aligned HPV-16 read pairs, ctDNA fraction from PCM, MRI tumor volume) and for the combined ctDNA fraction plus MRI tumor volume model. 10-fold cross-validation was repeated 1000 times.'}
 
 print(plot_mce)
 ```
@@ -853,7 +881,7 @@ print(plot_mce)
 <br/>
 <br/>
 
-```{r plot_5x_auc, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5e**'}
+```{r plot_5x_auc, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5e** Box plot of 5-fold cross-validated area under the curve (AUC) for predicting risk group. The same decision tree models described in (d) were used to compute ROC curves and AUCs, repeated 1000 times.'}
 
 print(plot_auc)
 ```
@@ -861,7 +889,7 @@ print(plot_auc)
 <br/>
 <br/>
 
-```{r plot_gini, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 5, fig.cap = '<br/>**Figure 5g**'}
+```{r plot_accu, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5, fig.width = 5, fig.cap = '<br/>**Figure 5g** Distribution of variable importance in a RFM, showing the standardized decrease in misclassification error from permuting out-of-bag samples for assay modalities at baseline and weeks 1–2. The lollipop shows the observed standardized decrease while the densities depict the null distribution obtained from 1000 randomized risk group permutations.'}
 
-print(plot_gini)
+print(plot_accu)
 ```

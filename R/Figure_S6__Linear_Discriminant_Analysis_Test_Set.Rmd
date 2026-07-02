@@ -385,7 +385,7 @@ plot_lda <- parse_end(do.call(rbind, observed)) %>%
   )
 ```
 
-```{r plot_lda_30gy_insert_sizes_and_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5.5, fig.width = 8.49, fig.cap = '<br/>**Figure S6** Scatter plots of number of read pairs versus mean insert sizes of reads aligned to HPV-16 genes in training plasma samples, classified as ctDNA positive or negative by the PCM assay.'}
+```{r plot_lda_30gy_insert_sizes_and_read_counts, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 5.5, fig.width = 8.49, fig.cap = '<br/>**Supplementary Figure S6** Scatter plots of number of read pairs versus mean insert sizes of reads aligned to HPV-16 genes in training plasma samples, classified as ctDNA positive or negative by the PCM assay.'}
 
 print(plot_lda)
 ```
