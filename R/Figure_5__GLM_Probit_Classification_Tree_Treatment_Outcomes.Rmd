@@ -62,6 +62,17 @@ paramy <- rpart::rpart.control(
   xval         = 100
 )
 
+paramx <- rpart::rpart.control(
+  minsplit     = 4,
+  minbucket	   = 1,
+  maxdepth     = 5,
+  maxcompete   = 1000,
+  maxsurrogate = 100,
+  usesurrogate = 2,
+  cp           = -Inf,
+  xval         = 100
+)
+
 # --- Helper: pivot per-patient per-timepoint data to wide abs/rel columns ---
 make_wide <- function(df, value_col, prefix) {
   df %>%
@@ -127,11 +138,11 @@ run_wilcox <- function(smry_long, outcome_col) {
 ClTree_5Cv_AUC <- function(data) {
   tidy_data <- tidyr::drop_na(data)
   roc <- replicate(1000, {
-    folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 5))
+    folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 10))
     fold_aucs <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
       train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
-      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramy)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramx)
       pred  <- predict(fit, newdata = test, type = "prob")
       tryCatch(
         pROC::roc(response = test$composite_end_point, predictor = pred[, "1"], quiet = TRUE)$auc %>%
@@ -152,7 +163,7 @@ ClTree_10Cv_MCE <- function(data) {
     fold_mce <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
       train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
-      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramy)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramx)
       pred  <- predict(fit, newdata = test, type = "class")
       conf  <- table(test$composite_end_point, pred)
       1 - sum(diag(conf)) / sum(conf)
@@ -668,7 +679,7 @@ smry_cv <- idx_metrics_ft %>%
       !composite_end_point ~ 0
     )
   ) %>%
-  tidyr::drop_na(composite_end_point, contains("AF"), contains("MRI"))
+  tidyr::drop_na(composite_end_point, contains("MRI"))
 			
 col_sets <- list(
   "cfDNA HPV\nReads"           	 = c("abs_HPV_wk0", "abs_HPV_wk1", "abs_HPV_wk2"),
@@ -762,7 +773,7 @@ vip <- importance(rf) %>%
   format_vip_labels()
 
 # Null distribution: permute labels 1000 times
-null_vip <- do.call(rbind, lapply(seq_len(1000), function(i) {
+null_vip <- do.call(rbind, lapply(seq_len(100), function(i) {
   perm_data <- rf_data %>%
     dplyr::mutate(composite_end_point = sample(composite_end_point, nrow(.), replace = FALSE))
   null_rf <- randomForest(
