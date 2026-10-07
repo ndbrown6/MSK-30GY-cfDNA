@@ -546,9 +546,12 @@ smry_base <- insert_metrics_by_gene %>%
 ```{r build_plots_2bc, eval = TRUE, include = FALSE}
 
 # --- Figure 2c: HPV-16 aligned read pairs by ctDNA status ---
-plot_aligned_reads <- insert_metrics_by_gene %>%
+plot_aligned_reads <- idx_metrics_ft %>%
+  dplyr::rename(sample_name = SAMPLE_NAME) %>%
+  dplyr::filter(CHROMOSOME == target_contigs["HPV-16"],
+  				FRAGMENT_LENGTH == FRAGMENT_LENGTH_THRESHOLD) %>%
   dplyr::group_by(sample_name) %>%
-  dplyr::summarize(READ_PAIRS = sum(READ_PAIRS), .groups = "drop") %>%
+  dplyr::summarize(READ_PAIRS = sum(ALIGNED_READS), .groups = "drop") %>%
   dplyr::left_join(dplyr::select(smry_ft, sample_name, Is_ctDNA), by = "sample_name") %>%
   dplyr::mutate(
     Is_ctDNA = dplyr::coalesce(Is_ctDNA, "Unknown"),
@@ -845,7 +848,7 @@ plot_linear_regression <- idx_metrics_ft %>%
   dplyr::left_join(manifest, by = "sample_name") %>%
   dplyr::filter(
     chromosome == hpv_type_wes_wgs,
-    timepoint_days_since_start_of_RT < 0,
+    timepoint_days_since_start_of_RT <= 0,
     hpv_type_wes_wgs == "HPV-16"
   ) %>%
   dplyr::left_join(dplyr::select(mut_af_smry, sample_name, mean_af), by = "sample_name") %>%
