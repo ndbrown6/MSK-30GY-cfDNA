@@ -93,6 +93,11 @@ signature_category <- function(x) {
 # --- Helper: shared box+jitter plot for ssGSEA score by ctDNA status ---
 gsea_boxplot <- function(df, y_col, y_limits = c(NA, 0.75)) {
   df %>%
+    dplyr::left_join(df %>%
+      dplyr::group_by(patient_name) %>%
+      dplyr::summarize(timepoint_days_closest_to_0 = max(timepoint_days_since_start_of_RT)),
+      by = "patient_name") %>%
+    dplyr::filter(timepoint_days_since_start_of_RT == timepoint_days_closest_to_0) %>%
     dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
     ggplot(aes(x = Is_ctDNA, y = .data[[y_col]])) +
     geom_boxplot(stat = "boxplot", outlier.shape = NA) +
@@ -108,7 +113,7 @@ gsea_boxplot <- function(df, y_col, y_limits = c(NA, 0.75)) {
       stat        = "signif",
       comparisons = list(c("-ve", "+ve")),
       test        = "wilcox.test",
-      test.args   = list(alternative = "less"),
+      test.args   = list(alternative = "two.sided"),
       vjust       = -0.2
     ) +
     theme_classic() +
@@ -210,7 +215,7 @@ idx_metrics_ft <- readr::read_tsv(
   dplyr::left_join(manifest, by = "sample_name") %>%
   dplyr::filter(
     chromosome == hpv_type_wes_wgs,
-    timepoint_days_since_start_of_RT < 0,
+    timepoint_days_since_start_of_RT <= 0,
     hpv_type_wes_wgs == "HPV-16"
   ) %>%
   dplyr::left_join(mut_af_smry, by = "sample_name") %>%
@@ -288,8 +293,10 @@ params <- gsvaParam(
   minSize  = 10,
   maxSize  = 500,
   maxDiff  = TRUE,
+  absRanking = FALSE,
   verbose  = TRUE
 )
+
 BroadGeneSet_SSGSEA <- gsva(params)
 
 response <- ft_eset$eset$Is_ctDNA
@@ -382,6 +389,8 @@ data_plots <- idx_metrics_ft %>%
     aligned_reads = log10(aligned_reads)
   ) %>%
   dplyr::select(
+  	patient_name,
+  	timepoint_days_since_start_of_RT,
     Is_ctDNA,
     aligned_reads,
     mean_af,
@@ -401,6 +410,11 @@ data_plots <- idx_metrics_ft %>%
 
 # --- F3a: tumor volume vs cfDNA aligned read pairs ---
 plot_chpv_vol <- data_plots %>%
+  dplyr::left_join(data_plots %>%
+    dplyr::group_by(patient_name) %>%
+    dplyr::summarize(timepoint_days_closest_to_0 = max(timepoint_days_since_start_of_RT)),
+    by = "patient_name") %>%
+  dplyr::filter(timepoint_days_since_start_of_RT == timepoint_days_closest_to_0) %>%
   ggplot(aes(x = tumor_volume, y = aligned_reads)) +
   geom_smooth(
     stat = "smooth", method = "lm", formula = y ~ x,
@@ -410,7 +424,11 @@ plot_chpv_vol <- data_plots %>%
     stat = "identity", shape = 21,
     color = "#1b9e77", fill = "white", alpha = 0.85, size = 2.5
   ) +
-  scale_x_log10() +
+  scale_x_log10(
+    limits = c(3, 100),
+    breaks = c(3, 10, 30, 100),
+    labels = c(3, 10, 30, 100)
+  ) +
   scale_y_continuous(
     limits = c(2, 7),
     breaks = c(2, 3, 4, 5, 6, 7),
@@ -418,7 +436,7 @@ plot_chpv_vol <- data_plots %>%
   ) +
   xlab(expression("Primary Tumor Volume (" ~ cm^3 ~ ")")) +
   ylab("cfDNA Aligned HPV Read Pairs") +
-  ggpubr::stat_cor(method = "spearman", label.x = log10(0.95), label.y = 7, size = 4) +
+  ggpubr::stat_cor(method = "spearman", label.x = log10(3), label.y = 7, size = 4) +
   theme_classic() +
   theme(
     axis.title.x = element_text(margin = ggplot2::margin(t = 20), size = 12),
@@ -429,6 +447,11 @@ plot_chpv_vol <- data_plots %>%
 
 # --- F3b: baseline hypoxia vs cfDNA aligned read pairs ---
 plot_chpv_hypoxia <- data_plots %>%
+  dplyr::left_join(data_plots %>%
+    dplyr::group_by(patient_name) %>%
+    dplyr::summarize(timepoint_days_closest_to_0 = max(timepoint_days_since_start_of_RT)),
+    by = "patient_name") %>%
+  dplyr::filter(timepoint_days_since_start_of_RT == timepoint_days_closest_to_0) %>%
   dplyr::mutate(
     hypoxia = dplyr::case_when(
       hypoxia %in% c("converted", "persistent") ~ "hypoxic",

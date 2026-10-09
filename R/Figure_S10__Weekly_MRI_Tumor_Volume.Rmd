@@ -225,7 +225,7 @@ plot_mri <- clinical %>%
     stat        = "signif",
     comparisons = list(c("Decreasing", "Increasing")),
     test        = "wilcox.test",
-    test.args   = list(alternative = "greater", exact = FALSE),
+    test.args   = list(alternative = "two.sided", exact = FALSE),
     y_position  = 52,
     vjust       = -0.25,
     textsize    = 3.25,

@@ -51,18 +51,7 @@ scientific_10 <- function(x) {
 }
 
 # --- Shared rpart control for classification tree CV ---
-paramy <- rpart::rpart.control(
-  minsplit     = 5,
-  minbucket    = 2,
-  maxdepth     = 5,
-  maxcompete   = 1000,
-  maxsurrogate = 100,
-  usesurrogate = 2,
-  cp           = -Inf,
-  xval         = 100
-)
-
-paramx <- rpart::rpart.control(
+params <- rpart::rpart.control(
   minsplit     = 4,
   minbucket	   = 1,
   maxdepth     = 5,
@@ -134,15 +123,15 @@ run_wilcox <- function(smry_long, outcome_col) {
   }, numeric(1))
 }
 
-# --- Helper: 5-fold CV AUC (1000 repeats) using classification tree ---
-ClTree_5Cv_AUC <- function(data) {
+# --- Helper: 10-fold CV AUC (1000 repeats) using classification tree ---
+ClTree_10Cv_AUC <- function(data) {
   tidy_data <- tidyr::drop_na(data)
   roc <- replicate(1000, {
     folds <- split(tidy_data, cut(sample(seq_len(nrow(tidy_data))), 10))
     fold_aucs <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
       train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
-      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramx)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = params)
       pred  <- predict(fit, newdata = test, type = "prob")
       tryCatch(
         pROC::roc(response = test$composite_end_point, predictor = pred[, "1"], quiet = TRUE)$auc %>%
@@ -163,7 +152,7 @@ ClTree_10Cv_MCE <- function(data) {
     fold_mce <- vapply(seq_along(folds), function(i) {
       test  <- plyr::ldply(folds[i],  data.frame, .id = NULL)
       train <- plyr::ldply(folds[-i], data.frame, .id = NULL)
-      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = paramx)
+      fit   <- rpart(composite_end_point ~ ., data = train, method = "class", control = params)
       pred  <- predict(fit, newdata = test, type = "class")
       conf  <- table(test$composite_end_point, pred)
       1 - sum(diag(conf)) / sum(conf)
@@ -716,7 +705,7 @@ plot_mce <- cv_boxplot(
 
 ```{r build_plot_5e, eval = TRUE, include = FALSE}
 
-Test_Auc <- run_cv_set(smry_cv, col_sets, ClTree_5Cv_AUC)
+Test_Auc <- run_cv_set(smry_cv, col_sets, ClTree_10Cv_AUC)
 
 p_auc_1 <- wilcox.test(
   x = Test_Auc[["ctDNA Fraction\n+ MRI Volume"]],
@@ -732,7 +721,7 @@ p_auc_2 <- wilcox.test(
 
 plot_auc <- cv_boxplot(
   results  = Test_Auc,
-  y_lab    = "5-Fold Cross-\nvalidated AUC",
+  y_lab    = "10-Fold Cross-\nvalidated AUC",
   y_limits = c(0, 1.5),
   sig_y1   = 0.85 * 1.5,
   sig_y2   = 0.75 * 1.5,
@@ -772,8 +761,8 @@ vip <- importance(rf) %>%
   tibble::rownames_to_column("variables") %>%
   format_vip_labels()
 
-# Null distribution: permute labels 1000 times
-null_vip <- do.call(rbind, lapply(seq_len(100), function(i) {
+# Null distribution: permute labels 10000 times
+null_vip <- do.call(rbind, lapply(seq_len(1000), function(i) {
   perm_data <- rf_data %>%
     dplyr::mutate(composite_end_point = sample(composite_end_point, nrow(.), replace = FALSE))
   null_rf <- randomForest(
@@ -892,7 +881,7 @@ print(plot_mce)
 <br/>
 <br/>
 
-```{r plot_5x_auc, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5e** Box plot of 5-fold cross-validated area under the curve (AUC) for predicting risk group. The same decision tree models described in (d) were used to compute ROC curves and AUCs, repeated 1000 times.'}
+```{r plot_10x_auc, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE, include = TRUE, fig.align = 'left', fig.height = 4, fig.width = 3, fig.cap = '<br/>**Figure 5e** Box plot of 5-fold cross-validated area under the curve (AUC) for predicting risk group. The same decision tree models described in (d) were used to compute ROC curves and AUCs, repeated 1000 times.'}
 
 print(plot_auc)
 ```

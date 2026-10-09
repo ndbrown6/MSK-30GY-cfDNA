@@ -833,7 +833,7 @@ plot_copy_number <- posterior_probs %>%
   )
 
 # --- Figure 2f: HPV copy number vs. cfDNA aligned read pairs ---
-plot_linear_regression <- idx_metrics_ft %>%
+df <- idx_metrics_ft %>%
   dplyr::select(
     sample_name     = SAMPLE_NAME,
     contig          = CHROMOSOME,
@@ -861,7 +861,14 @@ plot_linear_regression <- idx_metrics_ft %>%
   dplyr::mutate(
     mean_af       = mean_af * 100,
     aligned_reads = log10(aligned_reads)
-  ) %>%
+  )
+  
+plot_linear_regression <- df %>%
+  dplyr::left_join(df %>%
+    dplyr::group_by(patient_name) %>%
+    dplyr::summarize(timepoint_days_closest_to_0 = max(timepoint_days_since_start_of_RT)),
+    by = "patient_name") %>%
+  dplyr::filter(timepoint_days_since_start_of_RT == timepoint_days_closest_to_0) %>%
   ggplot(aes(x = hpv_panel_copy_number, y = aligned_reads)) +
   geom_smooth(
     stat = "smooth", method = "lm", formula = y ~ x,
