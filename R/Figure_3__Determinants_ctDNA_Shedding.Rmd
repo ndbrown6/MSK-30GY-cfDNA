@@ -98,20 +98,21 @@ gsea_boxplot <- function(df, y_col, y_limits = c(NA, 0.75)) {
       dplyr::summarize(timepoint_days_closest_to_0 = max(timepoint_days_since_start_of_RT)),
       by = "patient_name") %>%
     dplyr::filter(timepoint_days_since_start_of_RT == timepoint_days_closest_to_0) %>%
-    dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("-ve", "+ve"), ordered = TRUE)) %>%
+    dplyr::mutate(Is_ctDNA = ifelse(aligned_reads<=median(aligned_reads, na.rm=T), "Low", "High")) %>%    
+    dplyr::mutate(Is_ctDNA = factor(Is_ctDNA, levels = c("Low", "High"), ordered = TRUE)) %>%
     ggplot(aes(x = Is_ctDNA, y = .data[[y_col]])) +
     geom_boxplot(stat = "boxplot", outlier.shape = NA) +
     geom_jitter(
       stat = "identity", width = 0.1, height = 0,
       shape = 21, size = 2.5, fill = "white", color = "#1b9e77", alpha = 0.75
     ) +
-    scale_x_discrete(breaks = c("-ve", "+ve"), labels = c("-ve", "+ve")) +
+    scale_x_discrete(breaks = c("Low", "High"), labels = c("Low", "High")) +
     scale_y_continuous(limits = y_limits, labels = scientific_10) +
-    xlab("ctDNA") +
+    xlab("cfDNA Aligned HPV Read Pairs") +
     ylab("GSEA Score") +
     geom_signif(
       stat        = "signif",
-      comparisons = list(c("-ve", "+ve")),
+      comparisons = list(c("Low", "High")),
       test        = "wilcox.test",
       test.args   = list(alternative = "two.sided"),
       vjust       = -0.2
