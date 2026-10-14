@@ -169,9 +169,9 @@ data_adc <- clinical %>%
   dplyr::select(
     patient_id_mskcc,
     `Pre-treatment` = ADC_Mean_wk0,
-    wk1             = ADC_Mean_wk1,
-    wk2             = ADC_Mean_wk2,
-    wk3             = ADC_Mean_wk3
+    wk1             = ADC_Mean_wk2,
+    wk2             = ADC_Mean_wk3,
+    wk3             = ADC_Mean_wk4
   ) %>%
   reshape2::melt(
     variable.name = "timepoint_weeks_since_start_of_RT",
